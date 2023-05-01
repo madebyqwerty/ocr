@@ -1,5 +1,5 @@
 
-import cv2
+import cv2, qrcode
 
 debug_mode = False
 
@@ -49,6 +49,43 @@ class Image():
 
         return img[y:y+h, x:x+w] #Crop
 
+class Qr():
+    """
+    Qr code stuff
+    """
+
+    def create(data):
+        """
+        Make Qr code with data, return image
+        """
+        return qrcode.make(data)
+
+    def process(img):
+        """
+        If needed rotates img and get qr data, returns img, data
+        """
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        qr_data = None
+        qr_decoder = cv2.QRCodeDetector()
+        data, bbox, _ = qr_decoder.detectAndDecode(gray)
+
+        if bbox is None:
+            rotated_img = Image.flip(img)
+            gray = cv2.cvtColor(rotated_img, cv2.COLOR_BGR2GRAY)
+            data, bbox, _ = qr_decoder.detectAndDecode(gray)
+            if bbox is not None:
+                qr_data = data
+                img = rotated_img
+
+        else: 
+            qr_data = data
+
+        if qr_data is not None:
+            return img, qr_data
+        
+        raise NotImplementedError
+
 class Engine():
     """
     Primary functions
@@ -87,6 +124,3 @@ if "__main__" == __name__:
     Engine.process(f"TestImg/img0.jpg")
     Engine.process(f"TestImg/img1.jpg")
     Engine.process(f"TestImg/img2.jpg")
-    Engine.process(f"TestImg/img3.jpg")
-    Engine.process(f"TestImg/img4.jpg")
-    Engine.process(f"TestImg/img5.jpg")

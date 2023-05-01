@@ -3,7 +3,7 @@
 run: pytest
 """
 
-from main import Engine, Image
+from main import Engine, Image, Qr
 import pytest, cv2
 
 class TestClass:
@@ -18,3 +18,13 @@ class TestClass:
         size = img.shape
         resized_size = Image.resize(img, 0.25).shape
         assert size[0]/4 == resized_size[0] and size[1]/4 == resized_size[1]
+
+    def test_qr_processing(self):
+        img = cv2.imread("TestImg/qr0.jpg")
+        img, data = Qr.process(img)
+        assert data == "Testovací qrcode, jen mě zajímá, zda tohle funguje"
+
+    def test_qr_processing_upsite_down(self):
+        img = cv2.imread("TestImg/qr1.jpg")
+        img, data = Qr.process(img)
+        assert data == "Testovací qrcode, jen mě zajímá, zda tohle funguje"
