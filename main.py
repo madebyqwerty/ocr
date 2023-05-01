@@ -78,8 +78,8 @@ class Engine():
 
 if "__main__" == __name__:
     Engine.process(f"TestImg/img0.jpg")
-    Engine.process(f"TestImg/img1.jpg")
-    Engine.process(f"TestImg/img2.jpg")
-    Engine.process(f"TestImg/img3.jpg")
-    Engine.process(f"TestImg/img4.jpg")
-    Engine.process(f"TestImg/img5.jpg")
+    #Engine.process(f"TestImg/img1.jpg")
+    #Engine.process(f"TestImg/img2.jpg")
+    #Engine.process(f"TestImg/img3.jpg")
+    #Engine.process(f"TestImg/img4.jpg")
+    #Engine.process(f"TestImg/img5.jpg")
