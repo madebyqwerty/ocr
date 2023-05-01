@@ -69,7 +69,7 @@ class Qr():
         qr_decoder = cv2.QRCodeDetector()
         data, bbox, _ = qr_decoder.detectAndDecode(img)
 
-        if bbox is None:
+        if bbox is None: #If qr not decoded try flip
             rotated_img = Image.flip(img)
             data, bbox, _ = qr_decoder.detectAndDecode(img)
             if bbox is not None:
@@ -87,7 +87,7 @@ class Qr():
         if qr_data is not None:
             return img, qr_data
         
-        raise NotImplementedError
+        raise NotImplementedError #No readable qrcode on img
 
 class Engine():
     """
