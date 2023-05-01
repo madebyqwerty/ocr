@@ -1,6 +1,8 @@
 
 import cv2
 
+debug_mode = False
+
 class Image():
     """
     General image manipulation
@@ -32,16 +34,18 @@ class Image():
         Crops the image
         """
         ret, thresh_img = cv2.threshold(img, 120, 255, cv2.THRESH_BINARY) #Convert to binary image
-        #cv2.imshow('Thresh', Image.resize(thresh_img, 0.15))
         filtered_img = cv2.medianBlur(thresh_img, 101) #Filter showing approximate shape of the paper
-        #cv2.imshow('Filter', Image.resize(filtered_img, 0.15))
         edges_img = cv2.Canny(filtered_img, 100, 200) #Edge detection
-        #cv2.imshow('Edges', Image.resize(edges_img, 0.15))
         contours, hierarchy = cv2.findContours(edges_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x, y, w, h = cv2.boundingRect(contours[0])
 
         if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
             return img
+        
+        if debug_mode:
+            cv2.imshow('Thresh', Image.resize(thresh_img, 0.15))
+            cv2.imshow('Filter', Image.resize(filtered_img, 0.15))
+            cv2.imshow('Edges', Image.resize(edges_img, 0.15))
 
         return img[y:y+h, x:x+w] #Crop
 
@@ -64,7 +68,6 @@ class Engine():
         Basic image processing
         """
         input_img = cv2.imread(file)
-        cv2.imshow('Input', Image.resize(input_img, 0.2))
         gray_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY) #Converts to shades of gray
         processed_img = cv2.medianBlur(Image.crop(gray_img), 3)
         ret, processed_img = cv2.threshold(processed_img, 110, 235, cv2.THRESH_BINARY) #Convert to binary image
@@ -74,12 +77,16 @@ class Engine():
 
         #TODO: Image.flip() if needed
 
+        if debug_mode:
+            cv2.imshow('Input', Image.resize(input_img, 0.2))
+
         return processed_img
 
 if "__main__" == __name__:
+    debug_mode = True
     Engine.process(f"TestImg/img0.jpg")
-    #Engine.process(f"TestImg/img1.jpg")
-    #Engine.process(f"TestImg/img2.jpg")
-    #Engine.process(f"TestImg/img3.jpg")
-    #Engine.process(f"TestImg/img4.jpg")
-    #Engine.process(f"TestImg/img5.jpg")
+    Engine.process(f"TestImg/img1.jpg")
+    Engine.process(f"TestImg/img2.jpg")
+    Engine.process(f"TestImg/img3.jpg")
+    Engine.process(f"TestImg/img4.jpg")
+    Engine.process(f"TestImg/img5.jpg")
