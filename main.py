@@ -35,18 +35,18 @@ class Image():
         Crops the image
         """
         ret, thresh_img = cv2.threshold(img, 120, 255, cv2.THRESH_BINARY) #Convert to binary image
-        filtered_img = cv2.medianBlur(thresh_img, 101) #Filter showing approximate shape of the paper
+        filtered_img = cv2.medianBlur(thresh_img, 81) #Filter showing approximate shape of the paper
         edges_img = cv2.Canny(filtered_img, 100, 200) #Edge detection
         contours, hierarchy = cv2.findContours(edges_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x, y, w, h = cv2.boundingRect(contours[0])
-
-        if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
-            return img
         
-        if debug_mode:
+        if debug_mode: 
             cv2.imshow('Thresh', Image.resize(thresh_img, image_scale))
             cv2.imshow('Filter', Image.resize(filtered_img, image_scale))
             cv2.imshow('Edges', Image.resize(edges_img, image_scale))
+
+        if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
+            return img
 
         return img[y:y+h, x:x+w] #Crop
 
@@ -103,7 +103,7 @@ class Engine():
 
         print(qr_data)
 
-        cv2.imshow('Cropped, filtered Image', Image.resize(img, image_scale))
+        cv2.imshow('Processed', Image.resize(img, image_scale))
         cv2.waitKey(0) #Q for closing the window
         cv2.destroyAllWindows()
 
@@ -119,10 +119,7 @@ class Engine():
         if processed_img.shape[0] > processed_img.shape[1]: 
             processed_img = Image.rotate(processed_img) #Turn if needed
 
-        #TODO: Image.flip() if needed
-
-        if debug_mode:
-            cv2.imshow('Input', Image.resize(input_img, image_scale))
+        if debug_mode: cv2.imshow('Input', Image.resize(input_img, image_scale))
 
         return processed_img
 
