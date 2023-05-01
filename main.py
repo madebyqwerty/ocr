@@ -40,7 +40,7 @@ class Image():
         contours, hierarchy = cv2.findContours(edges_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x, y, w, h = cv2.boundingRect(contours[0])
 
-        if w < 500 or h < 500: #If too small, probably poorly defined edges
+        if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
             return img
 
         return img[y:y+h, x:x+w] #Crop
