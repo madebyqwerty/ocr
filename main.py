@@ -2,6 +2,7 @@
 import cv2, qrcode
 
 debug_mode = False
+image_scale = 0.2
 
 class Image():
     """
@@ -43,9 +44,9 @@ class Image():
             return img
         
         if debug_mode:
-            cv2.imshow('Thresh', Image.resize(thresh_img, 0.15))
-            cv2.imshow('Filter', Image.resize(filtered_img, 0.15))
-            cv2.imshow('Edges', Image.resize(edges_img, 0.15))
+            cv2.imshow('Thresh', Image.resize(thresh_img, image_scale))
+            cv2.imshow('Filter', Image.resize(filtered_img, image_scale))
+            cv2.imshow('Edges', Image.resize(edges_img, image_scale))
 
         return img[y:y+h, x:x+w] #Crop
 
@@ -64,22 +65,24 @@ class Qr():
         """
         If needed rotates img and get qr data, returns img, data
         """
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        qr_data = None
+        qr_data, x, y = None, None, None
         qr_decoder = cv2.QRCodeDetector()
-        data, bbox, _ = qr_decoder.detectAndDecode(gray)
+        data, bbox, _ = qr_decoder.detectAndDecode(img)
 
         if bbox is None:
             rotated_img = Image.flip(img)
-            gray = cv2.cvtColor(rotated_img, cv2.COLOR_BGR2GRAY)
-            data, bbox, _ = qr_decoder.detectAndDecode(gray)
+            data, bbox, _ = qr_decoder.detectAndDecode(img)
             if bbox is not None:
                 qr_data = data
                 img = rotated_img
+                x, y = bbox[0][0] #qrcode cords
 
         else: 
+            x, y = bbox[0][0] #qrcode cords
             qr_data = data
+
+        if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
+            img = Image.flip(img)
 
         if qr_data is not None:
             return img, qr_data
@@ -96,7 +99,11 @@ class Engine():
         Image processing for the required data
         """
         preprocessed_img = Engine.image_preprocessing(file)
-        cv2.imshow('Cropped, filtered Image', Image.resize(preprocessed_img, 0.2))
+        img, qr_data = Qr.process(preprocessed_img)
+
+        print(qr_data)
+
+        cv2.imshow('Cropped, filtered Image', Image.resize(img, image_scale))
         cv2.waitKey(0) #Q for closing the window
         cv2.destroyAllWindows()
 
@@ -115,12 +122,12 @@ class Engine():
         #TODO: Image.flip() if needed
 
         if debug_mode:
-            cv2.imshow('Input', Image.resize(input_img, 0.2))
+            cv2.imshow('Input', Image.resize(input_img, image_scale))
 
         return processed_img
 
 if "__main__" == __name__:
     debug_mode = True
-    Engine.process(f"TestImg/img0.jpg")
     Engine.process(f"TestImg/img1.jpg")
     Engine.process(f"TestImg/img2.jpg")
+    Engine.process(f"TestImg/img3.jpg")
