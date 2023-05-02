@@ -1,8 +1,11 @@
 
-import cv2, qrcode
+import cv2, qrcode, datetime
 
 debug_mode = False
 image_scale = 0.2
+
+class QRCodeError(Exception):
+    pass
 
 class Image():
     """
@@ -54,10 +57,16 @@ class Qr():
     Qr code stuff
     """
 
-    def create(data):
+    def create(version:str, teacher:str, class_id:str):
         """
         Make Qr code with data, return image
         """
+        data = {
+            "version": version,
+            "create_date": datetime.datetime.now().strftime("%d.%m.%Y"),
+            "teacher": teacher,
+            "class_id": class_id
+        }
         return qrcode.make(data)
 
     def process(img):
@@ -87,9 +96,9 @@ class Qr():
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
                 img = Image.flip(img)
 
-            return img, qr_data
+            #return img, qr_data
         
-        raise NotImplementedError #No readable qrcode on img
+        raise QRCodeError("QRCode is not readable") #No readable qrcode on img
 
 class Engine():
     """
