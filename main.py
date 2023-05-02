@@ -96,7 +96,7 @@ class Qr():
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
                 img = Image.flip(img)
 
-            #return img, qr_data
+            return img, qr_data
         
         raise QRCodeError("QRCode is not readable") #No readable qrcode on img
 
