@@ -1,4 +1,5 @@
 
+import numpy as np
 import cv2, qrcode, datetime
 
 debug_mode = False
@@ -33,11 +34,26 @@ class Image():
         dim = (width, height)
         return cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
     
+    def convert_to_gray(img):
+        """
+        Converts image to gray shades
+        """
+        return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    def convert_to_binary(img, val1, val2):
+        """
+        Converts image to binary
+        """
+        try: img = Image.convert_to_gray(img)
+        except: None
+        _, thresh_img = cv2.threshold(img, val1, val2, cv2.THRESH_BINARY) #Convert to binary image
+        return thresh_img
+
     def crop(img):
         """
         Crops the image
         """
-        _, thresh_img = cv2.threshold(img, 120, 255, cv2.THRESH_BINARY) #Convert to binary image
+        thresh_img = Image.convert_to_binary(img, 120, 255)
         filtered_img = cv2.medianBlur(thresh_img, 81) #Filter showing approximate shape of the paper
         edges_img = cv2.Canny(filtered_img, 100, 200) #Edge detection
         contours, _ = cv2.findContours(edges_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -75,7 +91,7 @@ class Qr():
         """
         qr_data, x, y = None, None, None
 
-        _, binary_img = cv2.threshold(img, 120, 220, cv2.THRESH_BINARY) #Convert to binary image
+        binary_img = Image.convert_to_binary(img, 120, 220)
 
         qr_decoder = cv2.QRCodeDetector()
         data, bbox, _ = qr_decoder.detectAndDecode(binary_img)
@@ -100,6 +116,20 @@ class Qr():
         
         raise QRCodeError("QRCode is not readable") #No readable qrcode on img
 
+class OCR():
+    """
+    OCR processing
+    """
+    def process(input_img):
+        """
+        Get name and absence from image
+        """
+
+        # TODO: split verticaly to get name and days separately?
+        # TODO: get name and absence
+
+        return None, None #Name, absence
+
 class Engine():
     """
     Primary functions
@@ -114,20 +144,16 @@ class Engine():
         
         print(qr_data)
         
-        _, img = cv2.threshold(img, 125, 210, cv2.THRESH_BINARY) #binary img (shades bug)
-        # Shades bug --> binary is readable, depending on light
-        # I can try change values if OCR cannot read correctly
+        data = Engine.paper_processing(img)
 
-        cv2.imshow('Processed', Image.resize(img, 0.3)) #image_scale
-        cv2.waitKey(0) #Q for closing the window
-        cv2.destroyAllWindows()
+        print(data, "\n")
 
     def image_preprocessing(file):
         """
         Basic image processing
         """
         input_img = cv2.imread(file)
-        gray_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY) #Converts to shades of gray
+        gray_img = Image.convert_to_gray(input_img)
         processed_img = cv2.medianBlur(Image.crop(gray_img), 3)
 
         if processed_img.shape[0] > processed_img.shape[1]: 
@@ -136,6 +162,55 @@ class Engine():
         if debug_mode: cv2.imshow('Input', Image.resize(input_img, image_scale))
 
         return processed_img
+    
+    def paper_processing(input_img):
+        """
+        Table processing
+        """
+        _, img = cv2.threshold(input_img, 125, 210, cv2.THRESH_BINARY) #binary img (shades bug)
+        # Shades bug --> binary is readable, depending on light
+        # I can try change values if OCR cannot read correctly
+
+        # TODO: Get lines on paper and for every part do OCR
+        # TODO: for cut_img in img_list OCR.process(cut_img) --> to have option to set custom filters
+
+
+
+        # Use canny edge detection
+        edges = cv2.Canny(input_img, 50, 150, apertureSize=3)
+        
+        # Apply HoughLinesP method to 
+        # to directly obtain line end points
+        lines_list =[]
+        lines = cv2.HoughLinesP(
+            edges, # Input edge image
+            1, # Distance resolution in pixels
+            np.pi/180, # Angle resolution in radians
+            threshold=100, # Min number of votes for valid line
+            minLineLength=500, # Min allowed length of line
+            maxLineGap=10 # Max allowed gap between line for joining them
+        )
+        
+        # Iterate over points
+        for points in lines:
+            # Extracted points nested in the list
+            x1,y1,x2,y2=points[0]
+            # Draw the lines joing the points
+            # On the original image
+            #cv2.line(img,(x1,y1),(x2,y2),(0,255,0),2)
+            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 0), 5)
+            # Maintain a simples lookup list for points
+            lines_list.append([(x1,y1),(x2,y2)])
+
+
+
+        cv2.imshow('Processed', Image.resize(img, 0.25)) #image_scale
+        cv2.waitKey(0) #Q for closing the window
+        cv2.destroyAllWindows()
+
+        exit()
+
+        return None
 
 if "__main__" == __name__:
     debug_mode = True
