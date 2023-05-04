@@ -1,6 +1,6 @@
 
 import numpy as np
-import cv2, qrcode, datetime
+import cv2, qrcode, datetime, pytesseract
 
 debug_mode = False
 image_scale = 0.2
@@ -127,6 +127,16 @@ class OCR():
         # TODO: split verticaly to get name and days separately?
         # TODO: get name and absence
 
+        gray = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
+        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
+        gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
+        img = Image.convert_to_binary(gray_thresh, 130, 255)
+
+        text = pytesseract.image_to_string(img)
+        print(text.replace("\n", ", "))
+
+        if debug_mode: cv2.imshow('OCR', Image.resize(img, 0.25)) #image_scale
+
         return None, None #Name, absence
 
 class Engine():
@@ -138,20 +148,25 @@ class Engine():
         """
         Image processing for the required data
         """
-        preprocessed_img = Engine.image_preprocessing(file)
+        input_img = cv2.imread(file)
+        preprocessed_img = Engine.image_preprocessing(input_img)
         img, qr_data = Qr.process(preprocessed_img) #Rotate img if needed
         
         print(qr_data)
-        
-        data = Engine.paper_processing(img)
 
-        print(data, "\n")
+        OCR.process(img)
 
-    def image_preprocessing(file):
+        #data = Engine.paper_processing(img)
+        #print(data, "\n")
+
+        if debug_mode:
+            cv2.waitKey(0) #Q for closing the window
+            cv2.destroyAllWindows()
+
+    def image_preprocessing(input_img):
         """
         Basic image processing
         """
-        input_img = cv2.imread(file)
         processed_img = cv2.medianBlur(Image.crop(input_img), 3)
 
         if processed_img.shape[0] > processed_img.shape[1]: 
@@ -182,9 +197,6 @@ class Engine():
         # detekce hran Cannyho algoritmem
         edges = cv2.Canny(binary, 50, 150, apertureSize=5)
 
-        cv2.imshow('Tresh', Image.resize(gray_thresh, 0.2)) #image_scale
-        cv2.imshow('Edges', Image.resize(edges, 0.2)) #image_scale
-
         # detekce horizontálních linií pomocí Houghovy transformace
         lines = cv2.HoughLinesP(edges, rho=1, theta=1*np.pi/180, threshold=80, minLineLength=1800, maxLineGap=100)
 
@@ -194,9 +206,10 @@ class Engine():
             if y1 + 25 > y2 and y1 - 25 < y2:
                 cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
-        cv2.imshow('Processed', Image.resize(img, 0.2)) #image_scale
-        cv2.waitKey(0) #Q for closing the window
-        cv2.destroyAllWindows()
+        if debug_mode:
+            cv2.imshow('Tresh', Image.resize(gray_thresh, 0.2)) #image_scale
+            cv2.imshow('Edges', Image.resize(edges, 0.2)) #image_scale
+            cv2.imshow('Processed', Image.resize(img, 0.2)) #image_scale
 
         return None
 
@@ -204,4 +217,4 @@ if "__main__" == __name__:
     debug_mode = True
     #img = Qr.create("2855604082", "5755190332")
     #img.save("Qr.jpg")
-    Engine.process(f"TestImg/img1.jpg")
+    Engine.process(f"TestImg/img2.jpg")
