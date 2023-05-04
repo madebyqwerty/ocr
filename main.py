@@ -73,14 +73,13 @@ class Qr():
     Qr code stuff
     """
 
-    def create(version:str, teacher:str, class_id:str):
+    def create(teacher_id:str, class_id:str):
         """
         Make Qr code with data, return image
         """
         data = {
-            "version": version,
             "create_date": datetime.datetime.now().strftime("%d.%m.%Y"),
-            "teacher": teacher,
+            "teacher_id": teacher_id,
             "class_id": class_id
         }
         return qrcode.make(data)
@@ -153,8 +152,7 @@ class Engine():
         Basic image processing
         """
         input_img = cv2.imread(file)
-        gray_img = Image.convert_to_gray(input_img)
-        processed_img = cv2.medianBlur(Image.crop(gray_img), 3)
+        processed_img = cv2.medianBlur(Image.crop(input_img), 3)
 
         if processed_img.shape[0] > processed_img.shape[1]: 
             processed_img = Image.rotate(processed_img) #Turn if needed
@@ -163,57 +161,47 @@ class Engine():
 
         return processed_img
     
-    def paper_processing(input_img):
+    def paper_processing(img):
         """
         Table processing
         """
-        _, img = cv2.threshold(input_img, 125, 210, cv2.THRESH_BINARY) #binary img (shades bug)
-        # Shades bug --> binary is readable, depending on light
-        # I can try change values if OCR cannot read correctly
+        #binary_img = Image.convert_to_binary(input_img, 140, 255)
+        #filtered_img = cv2.medianBlur(binary_img, 7)
 
         # TODO: Get lines on paper and for every part do OCR
         # TODO: for cut_img in img_list OCR.process(cut_img) --> to have option to set custom filters
-
-
-
-        # Use canny edge detection
-        edges = cv2.Canny(input_img, 50, 150, apertureSize=3)
         
-        # Apply HoughLinesP method to 
-        # to directly obtain line end points
-        lines_list =[]
-        lines = cv2.HoughLinesP(
-            edges, # Input edge image
-            1, # Distance resolution in pixels
-            np.pi/180, # Angle resolution in radians
-            threshold=100, # Min number of votes for valid line
-            minLineLength=500, # Min allowed length of line
-            maxLineGap=10 # Max allowed gap between line for joining them
-        )
-        
-        # Iterate over points
-        for points in lines:
-            # Extracted points nested in the list
-            x1,y1,x2,y2=points[0]
-            # Draw the lines joing the points
-            # On the original image
-            #cv2.line(img,(x1,y1),(x2,y2),(0,255,0),2)
-            cv2.line(img, (x1, y1), (x2, y2), (0, 0, 0), 5)
-            # Maintain a simples lookup list for points
-            lines_list.append([(x1,y1),(x2,y2)])
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+        # adaptivní prahování s větším oknem
+        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
+        gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
 
+        binary = Image.convert_to_binary(gray_thresh, 130, 255)
 
-        cv2.imshow('Processed', Image.resize(img, 0.25)) #image_scale
+        # detekce hran Cannyho algoritmem
+        edges = cv2.Canny(binary, 50, 150, apertureSize=5)
+
+        cv2.imshow('Tresh', Image.resize(gray_thresh, 0.2)) #image_scale
+        cv2.imshow('Edges', Image.resize(edges, 0.2)) #image_scale
+
+        # detekce horizontálních linií pomocí Houghovy transformace
+        lines = cv2.HoughLinesP(edges, rho=1, theta=1*np.pi/180, threshold=80, minLineLength=1800, maxLineGap=100)
+
+        # vykreslení detekovaných linií do obrázku
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            if y1 + 25 > y2 and y1 - 25 < y2:
+                cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
+        cv2.imshow('Processed', Image.resize(img, 0.2)) #image_scale
         cv2.waitKey(0) #Q for closing the window
         cv2.destroyAllWindows()
-
-        exit()
 
         return None
 
 if "__main__" == __name__:
     debug_mode = True
+    #img = Qr.create("2855604082", "5755190332")
+    #img.save("Qr.jpg")
     Engine.process(f"TestImg/img1.jpg")
-    Engine.process(f"TestImg/img2.jpg")
-    Engine.process(f"TestImg/img3.jpg")
