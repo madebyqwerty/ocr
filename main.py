@@ -154,9 +154,9 @@ class Engine():
         
         print(qr_data)
 
-        OCR.process(img)
+        #OCR.process(img)
 
-        #data = Engine.paper_processing(img)
+        data = Engine.paper_processing(img)
         #print(data, "\n")
 
         if debug_mode:
@@ -180,27 +180,20 @@ class Engine():
         """
         Table processing
         """
-        #binary_img = Image.convert_to_binary(input_img, 140, 255)
-        #filtered_img = cv2.medianBlur(binary_img, 7)
 
         # TODO: Get lines on paper and for every part do OCR
         # TODO: for cut_img in img_list OCR.process(cut_img) --> to have option to set custom filters
         
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        # adaptivní prahování s větším oknem
         gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
         gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
-
         binary = Image.convert_to_binary(gray_thresh, 130, 255)
 
-        # detekce hran Cannyho algoritmem
         edges = cv2.Canny(binary, 50, 150, apertureSize=5)
 
         # detekce horizontálních linií pomocí Houghovy transformace
         lines = cv2.HoughLinesP(edges, rho=1, theta=1*np.pi/180, threshold=80, minLineLength=1800, maxLineGap=100)
 
-        # vykreslení detekovaných linií do obrázku
         for line in lines:
             x1, y1, x2, y2 = line[0]
             if y1 + 25 > y2 and y1 - 25 < y2:
@@ -217,4 +210,4 @@ if "__main__" == __name__:
     debug_mode = True
     #img = Qr.create("2855604082", "5755190332")
     #img.save("Qr.jpg")
-    Engine.process(f"TestImg/img2.jpg")
+    Engine.process(f"TestImg/img1.jpg")
