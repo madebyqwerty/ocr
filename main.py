@@ -61,7 +61,8 @@ class Image():
         
         if debug_mode: 
             #cv2.imshow('Thresh', Image.resize(thresh_img, image_scale))
-            cv2.imshow('Edges', Image.resize(edges_img, image_scale))
+            #cv2.imshow('Edges', Image.resize(edges_img, image_scale))
+            pass
 
         if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
             return img
@@ -111,7 +112,7 @@ class Qr():
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
                 img = Image.flip(img)
 
-            return img, qr_data
+            return img, eval(qr_data) #Convert to dict
         
         raise QRCodeError("QRCode is not readable") #No readable qrcode on img
 
@@ -132,10 +133,12 @@ class OCR():
         gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
         img = Image.convert_to_binary(gray_thresh, 130, 255)
 
-        text = pytesseract.image_to_string(img)
+        text = pytesseract.image_to_string(img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
         print(text.replace("\n", ", "))
 
-        if debug_mode: cv2.imshow('OCR', Image.resize(img, 0.25)) #image_scale
+        if debug_mode: 
+            #cv2.imshow('OCR', Image.resize(img, image_scale)) #image_scale
+            cv2.imshow('OCR', Image.resize(img, 0.3)) #image_scale
 
         return None, None #Name, absence
 
@@ -152,9 +155,7 @@ class Engine():
         preprocessed_img = Engine.image_preprocessing(input_img)
         img, qr_data = Qr.process(preprocessed_img) #Rotate img if needed
         
-        print(qr_data)
-
-        #OCR.process(img)
+        #print(qr_data)
 
         data = Engine.paper_processing(img)
         #print(data, "\n")
@@ -189,7 +190,25 @@ class Engine():
         gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
         binary = Image.convert_to_binary(gray_thresh, 130, 255)
 
-        edges = cv2.Canny(binary, 50, 150, apertureSize=5)
+        filtered_img = cv2.medianBlur(binary, 3)
+        inverted_img = cv2.bitwise_not(filtered_img)
+
+        contours, hierarchy = cv2.findContours(inverted_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        max_area = 0
+        best_rect = None
+
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            area = w * h
+            if area > max_area:
+                max_area = area
+                best_rect = (x, y, w, h)
+
+        x, y, w, h = best_rect
+        table_img = binary[y:y+h, x:x+w]
+
+        """edges = cv2.Canny(table_img, 50, 150, apertureSize=5)
 
         # detekce horizontálních linií pomocí Houghovy transformace
         lines = cv2.HoughLinesP(edges, rho=1, theta=1*np.pi/180, threshold=80, minLineLength=1800, maxLineGap=100)
@@ -197,12 +216,13 @@ class Engine():
         for line in lines:
             x1, y1, x2, y2 = line[0]
             if y1 + 25 > y2 and y1 - 25 < y2:
-                cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                cv2.line(table_img, (x1, y1), (x2, y2), (0, 0, 255), 2)"""
 
         if debug_mode:
-            cv2.imshow('Tresh', Image.resize(gray_thresh, 0.2)) #image_scale
-            cv2.imshow('Edges', Image.resize(edges, 0.2)) #image_scale
-            cv2.imshow('Processed', Image.resize(img, 0.2)) #image_scale
+            cv2.imshow('Table', Image.resize(table_img, image_scale)) #image_scale
+            #cv2.imshow('Edges', Image.resize(edges, image_scale)) #image_scale
+
+        OCR.process(img[y-25:y+h+25, x-25:x+w+25])
 
         return None
 
