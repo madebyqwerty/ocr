@@ -1,5 +1,4 @@
 
-import numpy as np
 import cv2, qrcode, datetime, pytesseract
 
 debug_mode = False
@@ -12,7 +11,6 @@ class Image():
     """
     General image manipulation
     """
-
     def rotate(img):
         """
         Rotates the image 90 degrees
@@ -60,9 +58,8 @@ class Image():
         x, y, w, h = cv2.boundingRect(contours[0])
         
         if debug_mode: 
-            #cv2.imshow('Thresh', Image.resize(thresh_img, image_scale))
-            #cv2.imshow('Edges', Image.resize(edges_img, image_scale))
-            pass
+            cv2.imshow('Thresh', Image.resize(thresh_img, image_scale))
+            cv2.imshow('Edges', Image.resize(edges_img, image_scale))
 
         if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
             return img
@@ -73,7 +70,6 @@ class Qr():
     """
     Qr code stuff
     """
-
     def create(teacher_id:str, class_id:str):
         """
         Make Qr code with data, return image
@@ -91,7 +87,10 @@ class Qr():
         """
         qr_data, x, y = None, None, None
 
-        binary_img = Image.convert_to_binary(img, 120, 220)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
+        gray_thresh = cv2.medianBlur(gray_thresh, 3)
+        binary_img = Image.convert_to_binary(img, 130, 255)
 
         qr_decoder = cv2.QRCodeDetector()
         data, bbox, _ = qr_decoder.detectAndDecode(binary_img)
@@ -108,7 +107,7 @@ class Qr():
             x, y = bbox[0][0] #qrcode cords
             qr_data = data
 
-        if qr_data is not None:
+        if qr_data:
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
                 img = Image.flip(img)
 
@@ -124,21 +123,29 @@ class OCR():
         """
         Get name and absence from image
         """
-
-        # TODO: split verticaly to get name and days separately?
-        # TODO: get name and absence
-
         gray = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
         gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
         gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
+        gray_thresh = cv2.medianBlur(gray_thresh, 3)
         img = Image.convert_to_binary(gray_thresh, 130, 255)
 
         text = pytesseract.image_to_string(img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
-        print(text.replace("\n", ", "))
+        text = text.split("\n")
+
+        name_list = []
+        for i in text:
+            name = ""
+            for y in i.split(" "):
+                word = ""
+                if len(y) > 3:
+                    word = y
+                if word: name += " " + word
+            if name: name_list.append(name[1:])
+
+        print(name_list)
 
         if debug_mode: 
-            #cv2.imshow('OCR', Image.resize(img, image_scale)) #image_scale
-            cv2.imshow('OCR', Image.resize(img, 0.3)) #image_scale
+            cv2.imshow('OCR', Image.resize(img, image_scale)) #image_scale
 
         return None, None #Name, absence
 
@@ -146,7 +153,6 @@ class Engine():
     """
     Primary functions
     """
-
     def process(file):
         """
         Image processing for the required data
@@ -155,7 +161,7 @@ class Engine():
         preprocessed_img = Engine.image_preprocessing(input_img)
         img, qr_data = Qr.process(preprocessed_img) #Rotate img if needed
         
-        #print(qr_data)
+        print(qr_data)
 
         data = Engine.paper_processing(img)
         #print(data, "\n")
@@ -181,10 +187,6 @@ class Engine():
         """
         Table processing
         """
-
-        # TODO: Get lines on paper and for every part do OCR
-        # TODO: for cut_img in img_list OCR.process(cut_img) --> to have option to set custom filters
-        
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
         gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
@@ -193,7 +195,7 @@ class Engine():
         filtered_img = cv2.medianBlur(binary, 3)
         inverted_img = cv2.bitwise_not(filtered_img)
 
-        contours, hierarchy = cv2.findContours(inverted_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(inverted_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         max_area = 0
         best_rect = None
@@ -208,19 +210,8 @@ class Engine():
         x, y, w, h = best_rect
         table_img = binary[y:y+h, x:x+w]
 
-        """edges = cv2.Canny(table_img, 50, 150, apertureSize=5)
-
-        # detekce horizontálních linií pomocí Houghovy transformace
-        lines = cv2.HoughLinesP(edges, rho=1, theta=1*np.pi/180, threshold=80, minLineLength=1800, maxLineGap=100)
-
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            if y1 + 25 > y2 and y1 - 25 < y2:
-                cv2.line(table_img, (x1, y1), (x2, y2), (0, 0, 255), 2)"""
-
         if debug_mode:
             cv2.imshow('Table', Image.resize(table_img, image_scale)) #image_scale
-            #cv2.imshow('Edges', Image.resize(edges, image_scale)) #image_scale
 
         OCR.process(img[y-25:y+h+25, x-25:x+w+25])
 
@@ -228,6 +219,8 @@ class Engine():
 
 if "__main__" == __name__:
     debug_mode = True
+
     #img = Qr.create("2855604082", "5755190332")
     #img.save("Qr.jpg")
-    Engine.process(f"TestImg/img1.jpg")
+
+    #Engine.process(f"TestImg/img1.jpg")

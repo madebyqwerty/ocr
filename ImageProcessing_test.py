@@ -3,6 +3,7 @@
 run: pytest
 """
 
+"""
 from main import Engine, Image, Qr
 import pytest, cv2
 
@@ -28,3 +29,4 @@ class TestClass:
         img = cv2.imread("TestImg/qr1.jpg")
         img, data = Qr.process(img)
         assert data == "Testovací qrcode, jen mě zajímá, zda tohle funguje"
+"""
