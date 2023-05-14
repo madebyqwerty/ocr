@@ -7,5 +7,5 @@
 
 ## How to use:
 
-- api on: localhost:5000/api
-- swagger on: localhost:5000/apidocs
+- api on: [localhost:5000/api](http://localhost:5000/api)
+- swagger on: [localhost:5000/apidocs](http://localhost:5000/apidocs)

@@ -11,18 +11,6 @@ class Image():
     """
     General image manipulation
     """
-    def rotate(img):
-        """
-        Rotates the image 90 degrees
-        """
-        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-
-    def flip(img):
-        """
-        Turns the image upside down
-        """
-        return cv2.rotate(img, cv2.ROTATE_180)
-    
     def resize(img, size:float):
         """
         Resize the image
@@ -31,12 +19,6 @@ class Image():
         height = int(img.shape[0] * size)
         dim = (width, height)
         return cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
-    
-    def convert_to_gray(img):
-        """
-        Converts image to gray shades
-        """
-        return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
     def convert_to_binary(img, val1, val2):
         """
@@ -47,7 +29,7 @@ class Image():
         _, thresh_img = cv2.threshold(img, val1, val2, cv2.THRESH_BINARY) #Convert to binary image
         return thresh_img
 
-    def crop(img):
+    def crop_paper(img):
         """
         Crops the image
         """
@@ -56,10 +38,6 @@ class Image():
         edges_img = cv2.Canny(filtered_img, 100, 200) #Edge detection
         contours, _ = cv2.findContours(edges_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x, y, w, h = cv2.boundingRect(contours[0])
-        
-        if debug_mode: 
-            cv2.imshow('Thresh', Image.resize(thresh_img, image_scale))
-            cv2.imshow('Edges', Image.resize(edges_img, image_scale))
 
         if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
             return img
@@ -96,11 +74,11 @@ class Qr():
         data, bbox, _ = qr_decoder.detectAndDecode(binary_img)
 
         if bbox is None: #If qr not decoded try flip
-            rotated_img = Image.flip(binary_img)
+            rotated_img = cv2.rotate(binary_img, cv2.ROTATE_180)
             data, bbox, _ = qr_decoder.detectAndDecode(rotated_img)
             if bbox is not None:
                 qr_data = data
-                img = Image.flip(img)
+                img =cv2.rotate(img, cv2.ROTATE_180)
                 x, y = bbox[0][0] #qrcode cords
 
         else: 
@@ -109,7 +87,7 @@ class Qr():
 
         if qr_data:
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
-                img = Image.flip(img)
+                img = cv2.rotate(img, cv2.ROTATE_180)
 
             return img, eval(qr_data) #Convert to dict
         
@@ -130,22 +108,12 @@ class OCR():
         img = Image.convert_to_binary(gray_thresh, 130, 255)
 
         text = pytesseract.image_to_string(img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
-        text = text.split("\n")
-
-        name_list = []
-        for i in text:
-            name = ""
-            for y in i.split(" "):
-                word = ""
-                if len(y) > 3:
-                    word = y
-                if word: name += " " + word
-            if name: name_list.append(name[1:])
-
-        print(name_list)
+        text = text.replace("\n", ", ")
 
         if debug_mode: 
             cv2.imshow('OCR', Image.resize(img, image_scale)) #image_scale
+
+        return text #Test return
 
         return None, None #Name, absence
 
@@ -164,7 +132,8 @@ class Engine():
         print(qr_data)
 
         data = Engine.paper_processing(img)
-        #print(data, "\n")
+
+        print(data)
 
         if debug_mode:
             cv2.waitKey(0) #Q for closing the window
@@ -174,10 +143,10 @@ class Engine():
         """
         Basic image processing
         """
-        processed_img = cv2.medianBlur(Image.crop(input_img), 3)
+        processed_img = cv2.medianBlur(Image.crop_paper(input_img), 3)
 
         if processed_img.shape[0] > processed_img.shape[1]: 
-            processed_img = Image.rotate(processed_img) #Turn if needed
+            processed_img = cv2.rotate(processed_img, cv2.ROTATE_90_CLOCKWISE) #Turn if needed
 
         if debug_mode: cv2.imshow('Input', Image.resize(input_img, image_scale))
 
@@ -213,9 +182,7 @@ class Engine():
         if debug_mode:
             cv2.imshow('Table', Image.resize(table_img, image_scale)) #image_scale
 
-        OCR.process(img[y-25:y+h+25, x-25:x+w+25])
-
-        return None
+        return OCR.process(img[y-25:y+h+25, x-25:x+w+25])
 
 if "__main__" == __name__:
     debug_mode = True
@@ -223,4 +190,4 @@ if "__main__" == __name__:
     #img = Qr.create("2855604082", "5755190332")
     #img.save("Qr.jpg")
 
-    #Engine.process(f"TestImg/img1.jpg")
+    Engine.process(f"imgs/img1.jpg")
