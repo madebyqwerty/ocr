@@ -31,7 +31,7 @@ class Image():
 
     def crop_paper(img):
         """
-        Crops the image
+        Crop the paper in image
         """
         thresh_img = Image.convert_to_binary(img, 120, 255)
         filtered_img = cv2.medianBlur(thresh_img, 81) #Filter showing approximate shape of the paper
@@ -43,6 +43,37 @@ class Image():
             return img
 
         return img[y:y+h, x:x+w] #Crop
+
+    def crop_table(img):
+        """
+        get table from image
+        """
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
+        gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
+        binary = Image.convert_to_binary(gray_thresh, 130, 255)
+
+        filtered_img = cv2.medianBlur(binary, 3)
+        inverted_img = cv2.bitwise_not(filtered_img)
+
+        contours, _ = cv2.findContours(inverted_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        max_area = 0
+        best_rect = None
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            area = w * h
+            if area > max_area:
+                max_area = area
+                best_rect = (x, y, w, h)
+
+        x, y, w, h = best_rect
+        table_img = binary[y:y+h, x:x+w]
+
+        if debug_mode:
+            cv2.imshow('Table', Image.resize(table_img, image_scale)) #image_scale
+
+        return img[y-25:y+h+25, x-25:x+w+25]
 
 class Qr():
     """
@@ -89,7 +120,7 @@ class Qr():
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
                 img = cv2.rotate(img, cv2.ROTATE_180)
 
-            return img, eval(qr_data) #Convert to dict
+            return img, qr_data #Convert to dict
         
         raise QRCodeError("QRCode is not readable") #No readable qrcode on img
 
@@ -97,9 +128,9 @@ class OCR():
     """
     OCR processing
     """
-    def process(input_img):
+    def img_processing(input_img):
         """
-        Get name and absence from image
+        Get raw text from image
         """
         gray = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
         gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
@@ -115,7 +146,11 @@ class OCR():
 
         return text #Test return
 
-        return None, None #Name, absence
+    def text_processing(text:str, qr_data:str):
+        """
+        Process raw text
+        """
+        return text
 
 class Engine():
     """
@@ -126,64 +161,28 @@ class Engine():
         Image processing for the required data
         """
         input_img = cv2.imread(file)
-        preprocessed_img = Engine.image_preprocessing(input_img)
-        img, qr_data = Qr.process(preprocessed_img) #Rotate img if needed
+        paper_img = Image.crop_paper(input_img)
+        filtered_img = cv2.medianBlur(paper_img, 3)
+
+        if filtered_img.shape[0] > filtered_img.shape[1]: #Turn horizontal
+            filtered_img = cv2.rotate(filtered_img, cv2.ROTATE_90_CLOCKWISE) 
+
+        if debug_mode: cv2.imshow('Input', Image.resize(input_img, image_scale))
+
+        img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
         
         print(qr_data)
 
-        data = Engine.paper_processing(img)
+        table_img = Image.crop_table(img)
+        raw_data = OCR.img_processing(table_img)
+        data = OCR.text_processing(raw_data, qr_data)
 
         print(data)
 
         if debug_mode:
             cv2.waitKey(0) #Q for closing the window
             cv2.destroyAllWindows()
-
-    def image_preprocessing(input_img):
-        """
-        Basic image processing
-        """
-        processed_img = cv2.medianBlur(Image.crop_paper(input_img), 3)
-
-        if processed_img.shape[0] > processed_img.shape[1]: 
-            processed_img = cv2.rotate(processed_img, cv2.ROTATE_90_CLOCKWISE) #Turn if needed
-
-        if debug_mode: cv2.imshow('Input', Image.resize(input_img, image_scale))
-
-        return processed_img
     
-    def paper_processing(img):
-        """
-        Table processing
-        """
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
-        gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
-        binary = Image.convert_to_binary(gray_thresh, 130, 255)
-
-        filtered_img = cv2.medianBlur(binary, 3)
-        inverted_img = cv2.bitwise_not(filtered_img)
-
-        contours, _ = cv2.findContours(inverted_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        max_area = 0
-        best_rect = None
-
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            area = w * h
-            if area > max_area:
-                max_area = area
-                best_rect = (x, y, w, h)
-
-        x, y, w, h = best_rect
-        table_img = binary[y:y+h, x:x+w]
-
-        if debug_mode:
-            cv2.imshow('Table', Image.resize(table_img, image_scale)) #image_scale
-
-        return OCR.process(img[y-25:y+h+25, x-25:x+w+25])
-
 if "__main__" == __name__:
     debug_mode = True
 
