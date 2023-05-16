@@ -1,13 +1,34 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 from flasgger import Swagger
+import dotenv
+
+VERSION = "v0"
+config = dotenv.dotenv_values(".env")
 
 app = Flask(__name__)
-app.secret_key = b'\x9d\x97Leel\xe1\x15o\xd9:\xe8'
+app.secret_key = config["SECRET_KEY"]
 CORS(app)
-swagger = Swagger(app)
 
-@app.route("/api/status", methods=["GET"])
+swagger_config = {
+    "headers": [
+    ],
+    "specs": [
+        {
+            "endpoint": 'apispec_1',
+            "route": '/apispec_1.json',
+            "rule_filter": lambda rule: True,  # all in
+            "model_filter": lambda tag: True,  # all in
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/docs"
+}
+swagger = Swagger(app, config=swagger_config)
+
+
+@app.route(f"/api/{VERSION}/status", methods=["GET"])
 def status():
     """
     GET to check the status of the application
@@ -25,7 +46,7 @@ def status():
     """
     return jsonify(status="OK")
 
-@app.route("/api/process_img", methods=["POST"])
+@app.route(f"/api/{VERSION}/process_img", methods=["POST"])
 def process_img():
     """
     POST for image processing
