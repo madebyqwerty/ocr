@@ -3,9 +3,7 @@ from flask_cors import CORS
 from flasgger import Swagger
 import dotenv
 
-VERSION = "v0"
 config = dotenv.dotenv_values(".env")
-
 app = Flask(__name__)
 app.secret_key = config["SECRET_KEY"]
 CORS(app)
@@ -28,7 +26,7 @@ swagger_config = {
 swagger = Swagger(app, config=swagger_config)
 
 
-@app.route(f"/api/{VERSION}/status", methods=["GET"])
+@app.route(f"/api/status", methods=["GET"])
 def status():
     """
     GET to check the status of the application
@@ -46,7 +44,7 @@ def status():
     """
     return jsonify(status="OK")
 
-@app.route(f"/api/{VERSION}/process_img", methods=["POST"])
+@app.route(f"/api/process_img", methods=["POST"])
 def process_img():
     """
     POST for image processing
