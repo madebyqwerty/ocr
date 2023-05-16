@@ -3,8 +3,11 @@
 run: pytest
 """
 
+def test_example():
+    assert 0 == 0
+
 """
-from main import Engine, Image, Qr
+from ocr import Engine, Image, Qr
 import pytest, cv2
 
 class TestClass:
