@@ -2,7 +2,7 @@
 import cv2, qrcode, datetime, pytesseract
 
 debug_mode = False
-image_scale = 0.2
+DEBUG_IMG_SCALE = 0.2
 
 class QRCodeError(Exception):
     pass
@@ -24,7 +24,7 @@ class Image():
         """
         Converts image to binary
         """
-        try: img = Image.convert_to_gray(img)
+        try: img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         except: None
         _, thresh_img = cv2.threshold(img, val1, val2, cv2.THRESH_BINARY) #Convert to binary image
         return thresh_img
@@ -71,7 +71,7 @@ class Image():
         table_img = binary[y:y+h, x:x+w]
 
         if debug_mode:
-            cv2.imshow('Table', Image.resize(table_img, image_scale)) #image_scale
+            cv2.imshow('Table', Image.resize(table_img, DEBUG_IMG_SCALE)) #image_scale
 
         return img[y-25:y+h+25, x-25:x+w+25]
 
@@ -142,7 +142,7 @@ class OCR():
         text = text.replace("\n", ", ")
 
         if debug_mode: 
-            cv2.imshow('OCR', Image.resize(img, image_scale)) #image_scale
+            cv2.imshow('OCR', Image.resize(img, DEBUG_IMG_SCALE)) #image_scale
 
         return text #Test return
 
@@ -167,7 +167,7 @@ class Engine():
         if filtered_img.shape[0] > filtered_img.shape[1]: #Turn horizontal
             filtered_img = cv2.rotate(filtered_img, cv2.ROTATE_90_CLOCKWISE) 
 
-        if debug_mode: cv2.imshow('Input', Image.resize(input_img, image_scale))
+        if debug_mode: cv2.imshow('Input', Image.resize(input_img, DEBUG_IMG_SCALE))
 
         img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
         
