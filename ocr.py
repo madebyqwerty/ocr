@@ -20,7 +20,7 @@ class Image():
         dim = (width, height)
         return cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
     
-    def convert_to_binary(img, val1, val2):
+    def convert_to_binary(img, val1:int, val2:int):
         """
         Converts image to binary
         """
@@ -68,10 +68,9 @@ class Image():
                 best_rect = (x, y, w, h)
 
         x, y, w, h = best_rect
-        table_img = binary[y:y+h, x:x+w]
 
-        if debug_mode:
-            cv2.imshow('Table', Image.resize(table_img, DEBUG_IMG_SCALE)) #image_scale
+        if debug_mode: 
+            cv2.imshow('Table', Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
 
         return img[y-25:y+h+25, x-25:x+w+25]
 
@@ -96,11 +95,7 @@ class Qr():
         """
         qr_data, x, y = None, None, None
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
-        gray_thresh = cv2.medianBlur(gray_thresh, 3)
         binary_img = Image.convert_to_binary(img, 130, 255)
-
         qr_decoder = cv2.QRCodeDetector()
         data, bbox, _ = qr_decoder.detectAndDecode(binary_img)
 
@@ -132,17 +127,18 @@ class OCR():
         """
         Get raw text from image
         """
-        gray = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
-        gray_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
-        gray_thresh = cv2.bilateralFilter(gray_thresh, 9, 75, 75)
-        gray_thresh = cv2.medianBlur(gray_thresh, 3)
-        img = Image.convert_to_binary(gray_thresh, 130, 255)
+        gray_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
+        gray_thresh_img = cv2.adaptiveThreshold(gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 17, 9)
+        gray_thresh_img = cv2.bilateralFilter(gray_thresh_img, 9, 75, 75)
+        gray_thresh_img = cv2.medianBlur(gray_thresh_img, 3)
+        binary_img = Image.convert_to_binary(gray_thresh_img, 130, 255)
+        edges_img = cv2.Canny(binary_img, 100, 200) #Edge detection
 
-        text = pytesseract.image_to_string(img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
+        text = pytesseract.image_to_string(edges_img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
         text = text.replace("\n", ", ")
 
         if debug_mode: 
-            cv2.imshow('OCR', Image.resize(img, DEBUG_IMG_SCALE)) #image_scale
+            cv2.imshow('OCR', Image.resize(edges_img, DEBUG_IMG_SCALE)) #image_scale
 
         return text #Test return
 
@@ -150,6 +146,13 @@ class OCR():
         """
         Process raw text
         """
+        text_list = text.split(" ")
+        text_edited = []
+
+        for i in text_list:
+            if len(i) >= 3:
+                text_edited.append(i)
+
         return text
 
 class Engine():
@@ -167,9 +170,10 @@ class Engine():
         if filtered_img.shape[0] > filtered_img.shape[1]: #Turn horizontal
             filtered_img = cv2.rotate(filtered_img, cv2.ROTATE_90_CLOCKWISE) 
 
-        if debug_mode: cv2.imshow('Input', Image.resize(input_img, DEBUG_IMG_SCALE))
+        if debug_mode: 
+            cv2.imshow('Input', Image.resize(filtered_img, DEBUG_IMG_SCALE))
 
-        img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
+        img, qr_data = Qr.process(input_img) #Get qr data, flip if needed
         
         print(qr_data)
 
