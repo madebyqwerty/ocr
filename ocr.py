@@ -1,5 +1,6 @@
 
 import cv2, qrcode, pytesseract, time
+import numpy as np
 
 debug_mode = False
 DEBUG_IMG_SCALE = 0.15
@@ -76,7 +77,73 @@ class Image():
             cv2.imshow('Table img', Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
 
         if debug_mode: print(f"Crop image to {[y-25, y+h+250, x-25, x+w+25]}")
-        return img[y-25:y+h+25, x-25:x+w+25]
+
+        img = img[y-25:y+h+25, x-25:x+w+25]
+        return Image.fix_rotation(img)
+    
+    def fix_rotation(img):
+        if debug_mode: print("Img loaded to rotaion fix")
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        blur_gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(blur_gray, 50, 150)
+
+        threshold = 300
+        min_line_length = int(img.shape[1]/8) #3.5
+        max_line_gap = int(min_line_length/15) #9.5
+        raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, np.array([]), min_line_length, max_line_gap)
+
+        lines = []
+        for line in raw_lines:
+            for x1,y1,x2,y2 in line:
+                if y1+20 > y2 and y1-20 < y2:
+                    if x1 > img.shape[1]/6 and y1 > img.shape[0]/8:
+                        lines.append([x1, x2, y1, y2])
+
+        #lines_img = img #############################
+
+        fix = 0
+        for line in lines:
+            x1, x2, y1, y2 = line
+            #cv2.line(lines_img, (x1, y1), (x2, y2), (0, 0, 255), 5) ##################x
+            if fix == 0: fix = y2-y1
+            else: fix = (fix + (y2-y1))/2
+        fix = int(fix)
+
+        fix_rad = np.arctan2(fix, img.shape[1]) #calculate rotation
+        fix_deg = np.degrees(fix_rad)
+
+        if debug_mode: print(f"Rotate fix = {int(fix_deg*1000)/1000}")
+
+        #cv2.imshow("Lines", Image.resize(lines_img, DEBUG_IMG_SCALE)) ###################
+        
+        #img rotation
+        height, width = img.shape[:2]
+        rotation = cv2.getRotationMatrix2D((width / 2, height / 2), fix_deg, 1)
+        fixed_img = cv2.warpAffine(img, rotation, (width, height))
+
+        if debug_mode: print("Rotation done")
+        return fixed_img
+    
+    def slice_and_process(img):
+        height = img.shape[0]
+        width = img.shape[1]    
+
+        location = int(height/12)
+        line_height = int((height-location)/22)
+
+        lines = []
+        while location < height:
+            line = [0, width, location, location]
+            lines.append(line)
+            location += int(line_height/3)
+
+        if debug_mode: print("OCR processing started")
+
+        for line in lines:
+            x1, x2, y1, y2 = line
+            cut_img = img[y1:y1+line_height, x1:x2]
+            if cut_img.shape[0] == line_height:
+                Engine.slice_processing(cut_img)
 
 class Qr():
     """
@@ -144,25 +211,21 @@ class OCR():
         binary_img = Image.convert_to_binary(gray_thresh_img, 130, 255)
         edges_img = cv2.Canny(binary_img, 100, 200) #Edge detection
 
-        if debug_mode: print("OCR processing started")
-
         text = pytesseract.image_to_string(edges_img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
         text = text.replace("\n", ", ")
 
-        if debug_mode: print("OCR done")
-
         return text #Test return
 
-    def text_processing(raw_text:str, qr_data:str):
+    def text_processing(text:str, qr_data:str):
         """
         Process raw text
         """
-        if debug_mode: print("Started data processing")
-        print("Raw text:", raw_text)
-        text = raw_text.replace(",", "").replace("|", "")
+        banned_chars = ",.|\\/=—-1234567890()[]><!?:„“"
+        for char in banned_chars:
+            text = text.replace(char, "")
+
         text_list = text.split(" ")
         text_edited = []
-
         for i in text_list:
             if len(i) >= 3:
                 text_edited.append(i)
@@ -194,17 +257,25 @@ class Engine():
         img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
 
         table_img = Image.crop_table(img)
-        raw_data = OCR.img_processing(table_img)
-        data = OCR.text_processing(raw_data, qr_data)
 
-        print(data)
+        Image.slice_and_process(table_img)
 
         if debug_mode: print(f"Done in {int((time.time()-start)*100)/100}")
 
         if debug_mode:
             cv2.waitKey(0) #Q for closing the window
             cv2.destroyAllWindows()
-    
+
+    def slice_processing(img):
+        """try:
+            cv2.imshow("Cut", Image.resize(img, 0.3))
+            cv2.waitKey(0) #Q for closing the window
+            cv2.destroyAllWindows()
+        except: None"""
+        raw_data = OCR.img_processing(img)
+        data = OCR.text_processing(raw_data, "")
+        print(data)
+
 if "__main__" == __name__:
     debug_mode = True
 
