@@ -1,9 +1,11 @@
 
-import cv2, qrcode, pytesseract, time
+import cv2, qrcode, pytesseract, time, dotenv
 import numpy as np
 
 debug_mode = False
 DEBUG_IMG_SCALE = 0.15
+config = dotenv.dotenv_values(".env")
+CLASS = config["CLASS"]
 
 class QRCodeError(Exception):
     pass
@@ -82,15 +84,19 @@ class Image():
         return Image.fix_rotation(img)
     
     def fix_rotation(img):
+        """
+        Fix image rotation
+        """
         if debug_mode: print("Img loaded to rotaion fix")
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        blur_gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        blur_gray = cv2.GaussianBlur(gray_img, (5, 5), 0)
         edges = cv2.Canny(blur_gray, 50, 150)
 
         threshold = 300
-        min_line_length = int(img.shape[1]/8) #3.5
-        max_line_gap = int(min_line_length/15) #9.5
-        raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, np.array([]), min_line_length, max_line_gap)
+        min_line_length = int(img.shape[1]/8) 
+        max_line_gap = int(min_line_length/15) 
+        raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, 
+                                    np.array([]), min_line_length, max_line_gap)
 
         lines = []
         for line in raw_lines:
@@ -99,12 +105,9 @@ class Image():
                     if x1 > img.shape[1]/6 and y1 > img.shape[0]/8:
                         lines.append([x1, x2, y1, y2])
 
-        #lines_img = img #############################
-
         fix = 0
         for line in lines:
             x1, x2, y1, y2 = line
-            #cv2.line(lines_img, (x1, y1), (x2, y2), (0, 0, 255), 5) ##################x
             if fix == 0: fix = y2-y1
             else: fix = (fix + (y2-y1))/2
         fix = int(fix)
@@ -113,8 +116,6 @@ class Image():
         fix_deg = np.degrees(fix_rad)
 
         if debug_mode: print(f"Rotate fix = {int(fix_deg*1000)/1000}")
-
-        #cv2.imshow("Lines", Image.resize(lines_img, DEBUG_IMG_SCALE)) ###################
         
         #img rotation
         height, width = img.shape[:2]
@@ -124,26 +125,33 @@ class Image():
         if debug_mode: print("Rotation done")
         return fixed_img
     
-    def slice_and_process(img):
+    def slice_and_process(img, qr_data):
+        """
+        Slice image and process data
+        """
         height = img.shape[0]
         width = img.shape[1]    
 
-        location = int(height/12)
+        location = int(height/16)
         line_height = int((height-location)/22)
 
         lines = []
         while location < height:
             line = [0, width, location, location]
             lines.append(line)
-            location += int(line_height/3)
+            location += int(line_height/5)
 
         if debug_mode: print("OCR processing started")
 
+        names = []
         for line in lines:
             x1, x2, y1, y2 = line
             cut_img = img[y1:y1+line_height, x1:x2]
             if cut_img.shape[0] == line_height:
-                Engine.slice_processing(cut_img)
+                data = Engine.slice_processing(cut_img)
+                if data and not data in names: names.append(data)
+
+        print(len(names), sorted(names))
 
 class Qr():
     """
@@ -216,7 +224,7 @@ class OCR():
 
         return text #Test return
 
-    def text_processing(text:str, qr_data:str):
+    def text_processing(text:str):
         """
         Process raw text
         """
@@ -230,7 +238,7 @@ class OCR():
             if len(i) >= 3:
                 text_edited.append(i)
 
-        return text_edited
+        return " ".join(text_edited)
 
 class Engine():
     """
@@ -255,10 +263,9 @@ class Engine():
             filtered_img = cv2.rotate(filtered_img, cv2.ROTATE_90_CLOCKWISE) 
 
         img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
-
         table_img = Image.crop_table(img)
 
-        Image.slice_and_process(table_img)
+        Image.slice_and_process(table_img, qr_data)
 
         if debug_mode: print(f"Done in {int((time.time()-start)*100)/100}")
 
@@ -266,15 +273,46 @@ class Engine():
             cv2.waitKey(0) #Q for closing the window
             cv2.destroyAllWindows()
 
+    def is_name_here(students, text:str):
+        """
+        Find name in text
+        """
+        text = text.lower().replace(" ", "")
+
+        best_match = 0
+        best_match_name = ""
+        for name in students:
+            edited_name = name.lower().replace(" ", "")
+            if edited_name in text: return name
+
+            set1 = set(name)
+            set2 = set(text)
+            match = len(set1.intersection(set2)) / len(set1) * 100
+            if match > best_match:
+                best_match = match
+                best_match_name = name
+
+        if best_match > 40:
+            return best_match_name
+        
+        return None
+
     def slice_processing(img):
-        """try:
-            cv2.imshow("Cut", Image.resize(img, 0.3))
-            cv2.waitKey(0) #Q for closing the window
-            cv2.destroyAllWindows()
-        except: None"""
-        raw_data = OCR.img_processing(img)
-        data = OCR.text_processing(raw_data, "")
-        print(data)
+        """
+        Image slice processing
+        """
+        cut_img = img[0:img.shape[0], 0:int(img.shape[1]/5.5)]
+        raw_data = OCR.img_processing(cut_img)
+        data = OCR.text_processing(raw_data)
+        if len(data) < 5: return None
+
+        name = Engine.is_name_here(eval(CLASS), data)
+
+        if name == None: return None
+        
+        #TODO: Získat absenci
+
+        return name
 
 if "__main__" == __name__:
     debug_mode = True
@@ -282,4 +320,6 @@ if "__main__" == __name__:
     #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    Engine.process(f"imgs/img1.jpg")
+    #Engine.process(f"imgs/img0.jpg")
+    #Engine.process(f"imgs/img1.jpg")
+    Engine.process(f"imgs/img2.jpg")
