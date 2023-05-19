@@ -1,8 +1,8 @@
 
-import cv2, qrcode, datetime, pytesseract
+import cv2, qrcode, datetime, pytesseract, time
 
 debug_mode = False
-DEBUG_IMG_SCALE = 0.2
+DEBUG_IMG_SCALE = 0.15
 
 class QRCodeError(Exception):
     pass
@@ -40,8 +40,10 @@ class Image():
         x, y, w, h = cv2.boundingRect(contours[0])
 
         if h < (img.shape[0]/3) or w < (img.shape[1]/3): #If too small, probably poorly defined edges
+            if debug_mode: print("Using default paper size")
             return img
 
+        if debug_mode: print(f"Using cropped paper image {[y, y+h, x, x+w]}")
         return img[y:y+h, x:x+w] #Crop
 
     def crop_table(img):
@@ -57,6 +59,7 @@ class Image():
         inverted_img = cv2.bitwise_not(filtered_img)
 
         contours, _ = cv2.findContours(inverted_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if debug_mode: print("Detect edges")
 
         max_area = 0
         best_rect = None
@@ -70,8 +73,9 @@ class Image():
         x, y, w, h = best_rect
 
         if debug_mode: 
-            cv2.imshow('Table', Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
+            cv2.imshow('Table img', Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
 
+        if debug_mode: print(f"Crop image to {[y-25, y+h+250, x-25, x+w+25]}")
         return img[y-25:y+h+25, x-25:x+w+25]
 
 class Qr():
@@ -94,17 +98,23 @@ class Qr():
         If needed rotates img and get qr data, returns img, data
         """
         qr_data, x, y = None, None, None
-
         binary_img = Image.convert_to_binary(img, 130, 255)
+
+        if debug_mode: print("QR processing...")
         qr_decoder = cv2.QRCodeDetector()
         data, bbox, _ = qr_decoder.detectAndDecode(binary_img)
 
+        if debug_mode: 
+            cv2.imshow('QR input img', Image.resize(binary_img, DEBUG_IMG_SCALE))
+
         if bbox is None: #If qr not decoded try flip
+            if debug_mode: print("QR processing... (2. try)")
             rotated_img = cv2.rotate(binary_img, cv2.ROTATE_180)
             data, bbox, _ = qr_decoder.detectAndDecode(rotated_img)
             if bbox is not None:
                 qr_data = data
-                img =cv2.rotate(img, cv2.ROTATE_180)
+                if debug_mode: print("Flip the image")
+                img = cv2.rotate(img, cv2.ROTATE_180)
                 x, y = bbox[0][0] #qrcode cords
 
         else: 
@@ -113,10 +123,12 @@ class Qr():
 
         if qr_data:
             if x > img.shape[1]/2 or y > img.shape[0]/2: #if not in top right corner, flip it
+                if debug_mode: print("Flip the image")
                 img = cv2.rotate(img, cv2.ROTATE_180)
 
             return img, qr_data #Convert to dict
         
+        if debug_mode: print(f"QR error: {data}, {bbox}")
         raise QRCodeError("QRCode is not readable") #No readable qrcode on img
 
 class OCR():
@@ -134,18 +146,22 @@ class OCR():
         binary_img = Image.convert_to_binary(gray_thresh_img, 130, 255)
         edges_img = cv2.Canny(binary_img, 100, 200) #Edge detection
 
+        if debug_mode: print("OCR processing started")
+
         text = pytesseract.image_to_string(edges_img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
         text = text.replace("\n", ", ")
 
-        if debug_mode: 
-            cv2.imshow('OCR', Image.resize(edges_img, DEBUG_IMG_SCALE)) #image_scale
+        if debug_mode: print("OCR done")
 
         return text #Test return
 
-    def text_processing(text:str, qr_data:str):
+    def text_processing(raw_text:str, qr_data:str):
         """
         Process raw text
         """
+        if debug_mode: print("Started data processing")
+        print("Raw text:", raw_text)
+        text = raw_text.replace(",", "").replace("|", "")
         text_list = text.split(" ")
         text_edited = []
 
@@ -153,7 +169,7 @@ class OCR():
             if len(i) >= 3:
                 text_edited.append(i)
 
-        return text
+        return text_edited
 
 class Engine():
     """
@@ -163,25 +179,29 @@ class Engine():
         """
         Image processing for the required data
         """
+        start = time.time()
         input_img = cv2.imread(file)
+
+        if debug_mode: print("Load image")
+
         paper_img = Image.crop_paper(input_img)
         filtered_img = cv2.medianBlur(paper_img, 3)
 
+        if debug_mode: print("Filter image")
+
         if filtered_img.shape[0] > filtered_img.shape[1]: #Turn horizontal
+            if debug_mode: print("Rotate image 90 degrees")
             filtered_img = cv2.rotate(filtered_img, cv2.ROTATE_90_CLOCKWISE) 
 
-        if debug_mode: 
-            cv2.imshow('Input', Image.resize(filtered_img, DEBUG_IMG_SCALE))
-
-        img, qr_data = Qr.process(input_img) #Get qr data, flip if needed
-        
-        print(qr_data)
+        img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
 
         table_img = Image.crop_table(img)
         raw_data = OCR.img_processing(table_img)
         data = OCR.text_processing(raw_data, qr_data)
 
         print(data)
+
+        if debug_mode: print(f"Done in {int((time.time()-start)*100)/100}")
 
         if debug_mode:
             cv2.waitKey(0) #Q for closing the window
@@ -193,4 +213,4 @@ if "__main__" == __name__:
     #img = Qr.create("2855604082", "5755190332")
     #img.save("Qr.jpg")
 
-    Engine.process(f"imgs/img1.jpg")
+    Engine.process(f"imgs/img2.jpg")
