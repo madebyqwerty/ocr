@@ -361,10 +361,9 @@ class Engine():
         if len(data) < 5: return None
 
         name = Engine.is_name_here(students, data)
-
-        if debug_mode: print(f"OCR scan: {name}")
-
         if name == None: return None
+        
+        if debug_mode: print(f"OCR scan: {name}")
         
         absence_cut_img = img[0:img.shape[0], int(img.shape[1]/7):img.shape[1]]
         binary_img = Image.convert_to_binary(absence_cut_img, 130, 255)
@@ -393,14 +392,19 @@ class Engine():
             last_cut = line
 
             if rectangle_img.shape[1] > binary_img.shape[0]/2:
-                height, width = rectangle_img.shape
                 hour += 1
+                height, width = rectangle_img.shape
+                if height > 60:
+                    scale = 60/height
+                    new_size = (int(height*scale), int(width*scale))
+                    rectangle_img = cv2.resize(rectangle_img, new_size, interpolation = cv2.INTER_AREA)
+                    height, width = rectangle_img.shape
 
                 for row_index in range(height):
                     black_pixel_count = 0
                     for column_index in range(width):
                         pixel_value = rectangle_img[row_index, column_index]
-                        if pixel_value < 100:  # Předpokládáme, že černá je reprezentována hodnotou 0
+                        if pixel_value < 100:
                             black_pixel_count += 1
 
                     if black_pixel_count > height/2.5:
@@ -414,12 +418,10 @@ class Engine():
                         if pixel_value < 100:
                             black_pixel_count += 1
 
-                    if black_pixel_count < width/3 and black_pixel_count > width/13:
+                    if black_pixel_count < width/3 and black_pixel_count > width/26:
                         slash_posible += 1
-                    
-                print(slash_posible, width/1.5)
 
-                if slash_posible > width/1.5:
+                if slash_posible > width/4:
                     if hour >= 0: 
                         absence.append(hour)
                         """cv2.imshow("Absence", rectangle_img)
