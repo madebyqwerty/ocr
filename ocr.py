@@ -1,5 +1,5 @@
 
-import cv2, qrcode, datetime, pytesseract, time
+import cv2, qrcode, pytesseract, time
 
 debug_mode = False
 DEBUG_IMG_SCALE = 0.15
@@ -82,13 +82,11 @@ class Qr():
     """
     Qr code stuff
     """
-    def create(teacher_id:str, class_id:str):
+    def create(class_id:str):
         """
         Make Qr code with data, return image
         """
         data = {
-            "create_date": datetime.datetime.now().strftime("%d.%m.%Y"),
-            "teacher_id": teacher_id,
             "class_id": class_id
         }
         return qrcode.make(data)
@@ -210,7 +208,7 @@ class Engine():
 if "__main__" == __name__:
     debug_mode = True
 
-    #img = Qr.create("2855604082", "5755190332")
+    #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    Engine.process(f"imgs/img2.jpg")
+    Engine.process(f"imgs/img1.jpg")
