@@ -134,12 +134,16 @@ class Image():
 
         if debug_mode: print("Calculate line height")
 
-        SCALE = 0.75
+        SCALE = 750
         lines = []
         avrg_height, last_line, starter_point = 0, 0, 0
         binary_img = Image.convert_to_binary(img, 130, 255)[0:height, int(width/4):int(width/4)*2]
-        binary_img = Image.resize(binary_img, SCALE)
-        for row_index in range(binary_img.shape[0]):
+        scale = scale = SCALE/height
+
+        if binary_img.shape[0] > SCALE:
+            binary_img = Image.resize(binary_img, scale)
+
+        for row_index in range(binary_img.shape[0]): #Own line detection system
             row_pixels = 0
             for column_index in range(binary_img.shape[1]):
                 pixel_value = binary_img[row_index, column_index]
@@ -148,14 +152,14 @@ class Image():
             
             if row_pixels > binary_img.shape[1]/3:
                 if row_index > last_line+20:
-                    if starter_point == 0 and row_index/SCALE > int(height/16): starter_point = int(row_index/SCALE)
+                    if starter_point == 0 and row_index/scale > int(height/16): starter_point = int(row_index/scale)
                     if not last_line == 0:
                         calc_height = row_index - last_line
                         if avrg_height == 0: avrg_height = calc_height
                         else: avrg_height = (avrg_height + calc_height) / 2
                     last_line = row_index
 
-        line_height = int(avrg_height/SCALE)-5
+        line_height = int(avrg_height/scale)-5
         location = starter_point
 
         if debug_mode: print(f"Line height is {line_height}")
@@ -419,13 +423,13 @@ class Engine():
             rectangle_img = binary_img[0:binary_img.shape[0], last_cut:line] #Cut small part
             last_cut = line
 
+            SCALE = 40
             if rectangle_img.shape[1] > binary_img.shape[0]/2:
                 hour += 1
                 height, width = rectangle_img.shape
-                if height > 60: #TODO: Tohle by taky ještě šlo vylepšit
-                    scale = 60/height
-                    new_size = (int(height*scale), int(width*scale))
-                    rectangle_img = cv2.resize(rectangle_img, new_size, interpolation = cv2.INTER_AREA)
+                if height > SCALE:
+                    scale = SCALE/height
+                    rectangle_img = Image.resize(rectangle_img, scale)
                     height, width = rectangle_img.shape
 
                 ####### TODO: Tady mám nápad na lepší detekci:
