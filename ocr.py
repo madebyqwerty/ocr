@@ -76,7 +76,7 @@ class Image():
         x, y, w, h = best_rect
 
         if debug_mode: 
-            cv2.imshow('Table img', Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
+            cv2.imshow("Table img", Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
 
         if debug_mode: print(f"Crop image to {[y-25, y+h+250, x-25, x+w+25]}")
 
@@ -130,37 +130,78 @@ class Image():
         Slice image and process data
         """
         height = img.shape[0]
-        width = img.shape[1]    
+        width = img.shape[1]   
 
-        location = int(height/16)
-        line_height = int((height-location)/22) #TODO: Tohle by šlo udělat lépe
+        if debug_mode: print("Calculate line height")
 
+        SCALE = 0.75
+        lines = []
+        avrg_height, last_line, starter_point = 0, 0, 0
+        binary_img = Image.convert_to_binary(img, 130, 255)[0:height, int(width/4):int(width/4)*2]
+        binary_img = Image.resize(binary_img, SCALE)
+        for row_index in range(binary_img.shape[0]):
+            row_pixels = 0
+            for column_index in range(binary_img.shape[1]):
+                pixel_value = binary_img[row_index, column_index]
+                if pixel_value < 100:
+                    row_pixels += 1
+            
+            if row_pixels > binary_img.shape[1]/3:
+                if row_index > last_line+20:
+                    if starter_point == 0 and row_index/SCALE > int(height/16): starter_point = int(row_index/SCALE)
+                    if not last_line == 0:
+                        calc_height = row_index - last_line
+                        if avrg_height == 0: avrg_height = calc_height
+                        else: avrg_height = (avrg_height + calc_height) / 2
+                    last_line = row_index
+
+        line_height = int(avrg_height/SCALE)-5
+        location = starter_point
+
+        if debug_mode: print(f"Line height is {line_height}")
+        
         lines = []
         while location < height:
             line = [0, width, location, location]
             lines.append(line)
-            location += int(line_height/2.5) #TODO: Tady se to nebude muset dělit
+            location += int(line_height) #int(line_height/2.5) 
 
         if debug_mode: print("OCR processing started")
 
-        names = [] ####################
+        names = []
         records = []
+        fixes = [0, -10, 10, -20, 20]
+        last_fix = 0
         last_valid_name = None
         for line in lines:
             x1, x2, y1, _ = line
-            cut_img = img[y1:y1+line_height, x1:x2] #Cut to slices
-            if cut_img.shape[0] == line_height:
-                data = Engine.slice_processing(cut_img, last_valid_name)
-                if data and not data in names: 
-                    names.append(data[0]) #################
-                    for absence in data[1]:
-                        if absence:
-                            record = {"id": data[0], "absence": absence}
-                            if not record in records: 
-                                records.append(record)
-                    last_valid_name = data[0]
+            for fix in fixes:
+                fixed_height = y1+fix+last_fix
+                if fixed_height < 0: fixed_height = 0
+                cut_img = img[fixed_height:fixed_height+line_height, x1:x2] #Cut to slices
+                if cut_img.shape[0] == line_height:
+                    data = Engine.slice_processing(cut_img, last_valid_name)
+                    if data[0]: 
+                        if not data[0] in names: names.append(data[0])
 
-        print(len(names), names, "\n") ####################
+                        new_fix = 0
+                        for cords in data[2]:
+                            calc_fix = (cut_img.shape[0]/2) - (cords[0] + (cords[1]/2))
+                            if new_fix == 0: new_fix = calc_fix
+                            else: new_fix = (new_fix + calc_fix) / 2
+                        new_fix = int(-new_fix)
+
+                        for absence in data[1]:
+                            if absence:
+                                record = {"id": data[0], "absence": absence}
+                                if not record in records: 
+                                    records.append(record)
+                        if not last_valid_name == data[0]:
+                            last_valid_name = data[0]
+                            last_fix += new_fix + fix
+                            break
+
+        if debug_mode: print(f"Recognized {len(names)} names:", names)
         return records
 
 class Qr():
@@ -226,26 +267,20 @@ class OCR():
         binary_img = Image.convert_to_binary(gray_thresh_img, 130, 255)
         edges_img = cv2.Canny(binary_img, 100, 200) #Edge detection
 
-        text = pytesseract.image_to_string(edges_img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
-        text = text.replace("\n", ", ")
+        data = pytesseract.image_to_data(edges_img, lang="ces", output_type=pytesseract.Output.DICT)
 
-        return text #Test return
+        cords, text = [], []
+        for i in range(len(data["text"])):
+            raw_text = data["text"][i]
+            banned_chars = ",.|\\/=—-1234567890()[]><!?:„“ "
+            for char in banned_chars:
+                raw_text = raw_text.replace(char, "")
 
-    def text_processing(text:str):
-        """
-        Process raw text
-        """
-        banned_chars = ",.|\\/=—-1234567890()[]><!?:„“"
-        for char in banned_chars:
-            text = text.replace(char, "")
+            if not raw_text == "" and len(raw_text) > 3:
+                text.append(data["text"][i])
+                cords.append([data["top"][i], data["height"][i]])
 
-        text_list = text.split(" ")
-        text_edited = []
-        for i in text_list:
-            if len(i) >= 3:
-                text_edited.append(i)
-
-        return " ".join(text_edited)
+        return " ".join(text), cords #Test return
 
 class Engine():
     """
@@ -331,21 +366,28 @@ class Engine():
         """
         students = eval(CLASS) ###############
 
+        """cv2.imshow("Line", Image.resize(img, 0.25))
+        cv2.waitKey(0) #Q for closing the window
+        cv2.destroyAllWindows()"""
+
         #Limit list to prevent bad name detection
-        if last_valid_name == None: students = students[:5]
+        if last_valid_name == None: last_valid_name = 0
+        else: last_valid_name = students.index(last_valid_name)
+
+        if last_valid_name == 0:
+            students = students[:4]
         else:
-            num = students.index(last_valid_name)
-            max = num+3
+            num = last_valid_name-1
+            max = num+4
             if max > len(students): max = len(students)
             students = students[num:max]
 
         names_cut_img = img[0:img.shape[0], 0:int(img.shape[1]/5.5)]
-        raw_data = OCR.img_processing(names_cut_img)
-        data = OCR.text_processing(raw_data)
-        if len(data) < 5: return None
+        data, cords = OCR.img_processing(names_cut_img)
+        if len(data) < 5: return None, None, cords
 
         name = Engine.is_name_here(students, data)
-        if name == None: return None
+        if name == None: return None, None, cords
         
         if debug_mode: print(f"OCR scan: {name}")
         
@@ -361,6 +403,7 @@ class Engine():
         #Lines detection
         raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, 
                                     np.array([]), min_line_length, max_line_gap)
+        if raw_lines is None: raw_lines = []
 
         lines = []
         for line in raw_lines:
@@ -415,7 +458,7 @@ class Engine():
                         cv2.waitKey(0) #Q for closing the window
                         cv2.destroyAllWindows()"""
 
-        return name, absence
+        return name, absence, cords
 
 if "__main__" == __name__:
     debug_mode = True
