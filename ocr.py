@@ -87,7 +87,7 @@ class Image():
         """
         Fix image rotation
         """
-        if debug_mode: print("Img loaded to rotaion fix")
+        if debug_mode: print("Image loaded to rotaion fix")
         gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         blur_gray = cv2.GaussianBlur(gray_img, (5, 5), 0)
         edges = cv2.Canny(blur_gray, 50, 150)
@@ -95,6 +95,7 @@ class Image():
         threshold = 300
         min_line_length = int(img.shape[1]/8) 
         max_line_gap = int(min_line_length/15) 
+        #Detect lines on image
         raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, 
                                     np.array([]), min_line_length, max_line_gap)
 
@@ -103,7 +104,7 @@ class Image():
             for x1,y1,x2,y2 in line:
                 if y1+20 > y2 and y1-20 < y2:
                     if x1 > img.shape[1]/6 and y1 > img.shape[0]/8:
-                        lines.append([x1, x2, y1, y2])
+                        lines.append([x1, x2, y1, y2]) #Filter lines
 
         fix = 0
         for line in lines:
@@ -112,12 +113,11 @@ class Image():
             else: fix = (fix + (y2-y1))/2
         fix = int(fix)
 
-        fix_rad = np.arctan2(fix, img.shape[1]) #calculate rotation
+        fix_rad = np.arctan2(fix, img.shape[1]) #Calculate rotation
         fix_deg = np.degrees(fix_rad)
 
         if debug_mode: print(f"Rotate fix = {int(fix_deg*1000)/1000}")
         
-        #img rotation
         height, width = img.shape[:2]
         rotation = cv2.getRotationMatrix2D((width / 2, height / 2), fix_deg, 1)
         fixed_img = cv2.warpAffine(img, rotation, (width, height))
@@ -133,22 +133,22 @@ class Image():
         width = img.shape[1]    
 
         location = int(height/16)
-        line_height = int((height-location)/22)
+        line_height = int((height-location)/22) #TODO: Tohle by šlo udělat lépe
 
         lines = []
         while location < height:
             line = [0, width, location, location]
             lines.append(line)
-            location += int(line_height/2.5)
+            location += int(line_height/2.5) #TODO: Tady se to nebude muset dělit
 
         if debug_mode: print("OCR processing started")
 
-        names = [] ####################x
+        names = [] ####################
         records = []
         last_valid_name = None
         for line in lines:
-            x1, x2, y1, y2 = line
-            cut_img = img[y1:y1+line_height, x1:x2]
+            x1, x2, y1, _ = line
+            cut_img = img[y1:y1+line_height, x1:x2] #Cut to slices
             if cut_img.shape[0] == line_height:
                 data = Engine.slice_processing(cut_img, last_valid_name)
                 if data and not data in names: 
@@ -186,9 +186,6 @@ class Qr():
         if debug_mode: print("QR processing...")
         qr_decoder = cv2.QRCodeDetector()
         data, bbox, _ = qr_decoder.detectAndDecode(binary_img)
-
-        if debug_mode: 
-            cv2.imshow('QR input img', Image.resize(binary_img, DEBUG_IMG_SCALE))
 
         if bbox is None: #If qr not decoded try flip
             if debug_mode: print("QR processing... (2. try)")
@@ -228,10 +225,6 @@ class OCR():
         gray_thresh_img = cv2.medianBlur(gray_thresh_img, 3)
         binary_img = Image.convert_to_binary(gray_thresh_img, 130, 255)
         edges_img = cv2.Canny(binary_img, 100, 200) #Edge detection
-
-        """cv2.imshow("OCR", Image.resize(binary_img, 0.3))
-        cv2.waitKey(0) #Q for closing the window
-        cv2.destroyAllWindows()"""
 
         text = pytesseract.image_to_string(edges_img, "ces") #sudo dnf install tesseract-langpack-ces tesseract
         text = text.replace("\n", ", ")
@@ -291,7 +284,7 @@ class Engine():
 
     def is_name_here(students, text:str):
         """
-        Find name in text
+        Find name from list in text
         """
         text = text.lower().replace(" ", "")
 
@@ -301,20 +294,16 @@ class Engine():
             edited_name = name.lower().replace(" ", "")
             if edited_name in text: return name
 
-            len_text1 = len(name)
-            len_text2 = len(text)
-            count = 0
-            
-            index2 = 0
-            for i in range(len_text1):
+            index, count = 0, 0
+            for i in range(len(name)):
                 char = name[i]
-                if char in text[index2:]:
-                    index2 = text.index(char, index2) + 1
+                if char in text[index:]:
+                    index = text.index(char, index) + 1
                     count += 1
-                    if index2 == len_text2:
+                    if index == len(text):
                         break
             
-            match =  (count / len_text1) * 100
+            match =  (count / len(name)) * 100
 
             if match > best_match:
                 best_match = match
@@ -326,13 +315,7 @@ class Engine():
         best_match = 0
         best_match_name = ""
         for name in students:
-            edited_name = name.lower().replace(" ", "")
-            if edited_name in text: return name
-
-            set1 = set(name)
-            set2 = set(text)
-            match = len(set1.intersection(set2)) / len(set1) * 100
-
+            match = len(set(name).intersection(set(text))) / len(set(name)) * 100
             if match > best_match:
                 best_match = match
                 best_match_name = name
@@ -346,9 +329,10 @@ class Engine():
         """
         Image slice processing
         """
-        students = eval(CLASS)
-        if last_valid_name == None:
-            students = students[:5]
+        students = eval(CLASS) ###############
+
+        #Limit list to prevent bad name detection
+        if last_valid_name == None: students = students[:5]
         else:
             num = students.index(last_valid_name)
             max = num+3
@@ -374,13 +358,14 @@ class Engine():
         threshold = 15
         min_line_length = int(img.shape[0]/2.25) 
         max_line_gap = int(min_line_length/1.1) 
+        #Lines detection
         raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, 
                                     np.array([]), min_line_length, max_line_gap)
 
         lines = []
         for line in raw_lines:
-            for x1, y1, x2, y2 in line:
-                if x1+10 > x2 and x1-10 < x2:
+            for x1, _, x2, _ in line:
+                if x1+10 > x2 and x1-10 < x2: #Filter vertical lines
                     lines.append(x1)
         lines = sorted(lines)
 
@@ -388,18 +373,19 @@ class Engine():
         hour = -2
         absence = []
         for line in lines:
-            rectangle_img = binary_img[0:binary_img.shape[0], last_cut:line]
+            rectangle_img = binary_img[0:binary_img.shape[0], last_cut:line] #Cut small part
             last_cut = line
 
             if rectangle_img.shape[1] > binary_img.shape[0]/2:
                 hour += 1
                 height, width = rectangle_img.shape
-                if height > 60:
+                if height > 60: #TODO: Tohle by taky ještě šlo vylepšit
                     scale = 60/height
                     new_size = (int(height*scale), int(width*scale))
                     rectangle_img = cv2.resize(rectangle_img, new_size, interpolation = cv2.INTER_AREA)
                     height, width = rectangle_img.shape
 
+                ####### TODO: Tady mám nápad na lepší detekci:
                 for row_index in range(height):
                     black_pixel_count = 0
                     for column_index in range(width):
@@ -420,6 +406,7 @@ class Engine():
 
                     if black_pixel_count < width/3 and black_pixel_count > width/26:
                         slash_posible += 1
+                ######## /TODO
 
                 if slash_posible > width/4:
                     if hour >= 0: 
@@ -436,7 +423,6 @@ if "__main__" == __name__:
     #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    #output = Engine.process(f"imgs/img0.jpg")
-    output = Engine.process(f"imgs/img1.jpg")
-    #output = Engine.process(f"imgs/img2.jpg")
-    print(output)
+    #print(Engine.process(f"imgs/img0.jpg"))
+    print(Engine.process(f"imgs/img1.jpg"))
+    #print(Engine.process(f"imgs/img2.jpg"))
