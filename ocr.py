@@ -10,6 +10,9 @@ CLASS = config["CLASS"]
 class QRCodeError(Exception):
     pass
 
+class NamesDetectionError(Exception):
+    pass
+
 class Image():
     """
     General image manipulation
@@ -20,8 +23,7 @@ class Image():
         """
         width = int(img.shape[1] * size)
         height = int(img.shape[0] * size)
-        dim = (width, height)
-        return cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
+        return cv2.resize(img, (width, height), interpolation = cv2.INTER_AREA)
     
     def convert_to_binary(img, val1:int, val2:int):
         """
@@ -129,6 +131,8 @@ class Image():
         """
         Slice image and process data
         """
+        students = eval(CLASS) ###############
+
         height = img.shape[0]
         width = img.shape[1]   
 
@@ -184,7 +188,7 @@ class Image():
                 if fixed_height < 0: fixed_height = 0
                 cut_img = img[fixed_height:fixed_height+line_height, x1:x2] #Cut to slices
                 if cut_img.shape[0] == line_height:
-                    data = Engine.slice_processing(cut_img, last_valid_name)
+                    data = Engine.slice_processing(cut_img, last_valid_name, students)
                     if data[0]: 
                         if not data[0] in names: names.append(data[0])
 
@@ -206,6 +210,10 @@ class Image():
                             break
 
         if debug_mode: print(f"Recognized {len(names)} names:", names)
+
+        if len(names) < (len(students)/100)*90: 
+            raise NamesDetectionError("OCR detection error")
+
         return records
 
 class Qr():
@@ -216,10 +224,7 @@ class Qr():
         """
         Make Qr code with data, return image
         """
-        data = {
-            "class_id": class_id
-        }
-        return qrcode.make(data)
+        return qrcode.make({"class_id": class_id})
 
     def process(img):
         """
@@ -364,12 +369,10 @@ class Engine():
 
         return None
 
-    def slice_processing(img, last_valid_name:str):
+    def slice_processing(img, last_valid_name:str, students):
         """
         Image slice processing
         """
-        students = eval(CLASS) ###############
-
         #Limit list to prevent bad name detection
         if last_valid_name == None: last_valid_name = 0
         else: last_valid_name = students.index(last_valid_name)
@@ -448,9 +451,6 @@ class Engine():
                 if slash_posible > width/4:
                     if hour >= 0: 
                         absence.append(hour)
-                        """cv2.imshow("Absence", rectangle_img)
-                        cv2.waitKey(0) #Q for closing the window
-                        cv2.destroyAllWindows()"""
 
         return name, absence, cords
 
@@ -460,6 +460,4 @@ if "__main__" == __name__:
     #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    #print(Engine.process(f"imgs/img0.jpg"))
     print(Engine.process(f"imgs/img1.jpg"))
-    #print(Engine.process(f"imgs/img2.jpg"))
