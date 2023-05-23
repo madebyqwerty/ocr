@@ -370,10 +370,6 @@ class Engine():
         """
         students = eval(CLASS) ###############
 
-        """cv2.imshow("Line", Image.resize(img, 0.25))
-        cv2.waitKey(0) #Q for closing the window
-        cv2.destroyAllWindows()"""
-
         #Limit list to prevent bad name detection
         if last_valid_name == None: last_valid_name = 0
         else: last_valid_name = students.index(last_valid_name)
@@ -398,23 +394,19 @@ class Engine():
         absence_cut_img = img[0:img.shape[0], int(img.shape[1]/7):img.shape[1]]
         binary_img = Image.convert_to_binary(absence_cut_img, 130, 255)
 
-        blur_gray = cv2.GaussianBlur(binary_img, (5, 5), 0)
-        edges = cv2.Canny(blur_gray, 50, 150)
-
-        threshold = 15
-        min_line_length = int(img.shape[0]/2.25) 
-        max_line_gap = int(min_line_length/1.1) 
-        #Lines detection
-        raw_lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold, 
-                                    np.array([]), min_line_length, max_line_gap)
-        if raw_lines is None: raw_lines = []
-
         lines = []
-        for line in raw_lines:
-            for x1, _, x2, _ in line:
-                if x1+10 > x2 and x1-10 < x2: #Filter vertical lines
-                    lines.append(x1)
-        lines = sorted(lines)
+        last_line = 0
+        for column_index in range(binary_img.shape[1]): #Own line detection system
+            column_pixels = 0
+            for row_index in range(binary_img.shape[0]):
+                pixel_value = binary_img[row_index, column_index]
+                if pixel_value < 100:
+                    column_pixels += 1
+            
+            if column_pixels > binary_img.shape[0]/1.5:
+                if column_index > last_line+10 or last_line == 0:
+                    lines.append(column_index)
+                last_line = column_index
 
         last_cut = 0
         hour = -2
@@ -432,7 +424,6 @@ class Engine():
                     rectangle_img = Image.resize(rectangle_img, scale)
                     height, width = rectangle_img.shape
 
-                ####### TODO: Tady mám nápad na lepší detekci:
                 for row_index in range(height):
                     black_pixel_count = 0
                     for column_index in range(width):
@@ -453,7 +444,6 @@ class Engine():
 
                     if black_pixel_count < width/3 and black_pixel_count > width/26:
                         slash_posible += 1
-                ######## /TODO
 
                 if slash_posible > width/4:
                     if hour >= 0: 
