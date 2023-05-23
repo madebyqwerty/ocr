@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flasgger import Swagger
 import dotenv
@@ -24,7 +24,6 @@ swagger_config = {
     "specs_route": "/docs"
 }
 swagger = Swagger(app, config=swagger_config)
-
 
 @app.route(f"/api/status", methods=["GET"])
 def status():
