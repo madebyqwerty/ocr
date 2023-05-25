@@ -9,5 +9,5 @@
 
 ## How to use:
 
-- api on: [localhost:5000/api](http://localhost:5000/api)
-- swagger on: [localhost:5000/apidocs](http://localhost:5000/apidocs)
+- api on: [localhost:3001/api](http://localhost:3001/api)
+- swagger on: [localhost:3001/apidocs](http://localhost:3001/apidocs)
