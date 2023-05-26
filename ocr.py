@@ -13,7 +13,7 @@ class NamesDetectionError(Exception):
 
 class db():
     def get_class(id): #TODO: Request databáze
-        url = "http://192.168.0.10:3002/api/users"
+        url = "http://localhost:3002/api/users"
         response = requests.get(url)
 
         users = {}
