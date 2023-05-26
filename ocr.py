@@ -1,5 +1,5 @@
 
-import cv2, qrcode, pytesseract, time, dotenv, ast
+import cv2, qrcode, pytesseract, time, ast, requests, json
 import numpy as np
 
 debug_mode = False
@@ -13,9 +13,14 @@ class NamesDetectionError(Exception):
 
 class db():
     def get_class(id): #TODO: Request databáze
-        config = dotenv.dotenv_values(".env")
-        CLASS = config["CLASS"]
-        return eval(CLASS)
+        url = "http://192.168.0.10:3002/api/users"
+        response = requests.get(url)
+
+        users = {}
+        data = json.loads(response)
+        for user in data: users[user["name"]] = user["id"]
+
+        return users
 
 class Image():
     """
@@ -204,7 +209,7 @@ class Image():
 
                         for absence in data[1]:
                             if absence:
-                                record = {"id": data[0], "absence": absence}
+                                record = {"id": students[data[0]], "absence": absence}
                                 if not record in records: 
                                     records.append(record)
                         if not last_valid_name == data[0]:
@@ -298,12 +303,11 @@ class Engine():
     """
     Primary functions
     """
-    def process(file):
+    def process(input_img):
         """
         Image processing for the required data
         """
         start = time.time()
-        input_img = cv2.imread(file)
 
         if debug_mode: print("Load image")
 
@@ -372,10 +376,12 @@ class Engine():
 
         return None
 
-    def slice_processing(img, last_valid_name:str, students):
+    def slice_processing(img, last_valid_name:str, students_ids):
         """
         Image slice processing
         """
+        students = list(students_ids.keys())
+
         #Limit list to prevent bad name detection
         if last_valid_name == None: last_valid_name = 0
         else: last_valid_name = students.index(last_valid_name)
@@ -463,4 +469,4 @@ if "__main__" == __name__:
     #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    print(Engine.process(f"imgs/img1.jpg"))
+    print(Engine.process(cv2.imread("imgs/img1.jpg")))
