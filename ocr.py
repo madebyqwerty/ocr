@@ -1,17 +1,26 @@
 
-import cv2, qrcode, pytesseract, time, dotenv
+import cv2, qrcode, pytesseract, time, ast, requests, json
 import numpy as np
 
 debug_mode = False
 DEBUG_IMG_SCALE = 0.15
-config = dotenv.dotenv_values(".env")
-CLASS = config["CLASS"]
 
 class QRCodeError(Exception):
     pass
 
 class NamesDetectionError(Exception):
     pass
+
+class db():
+    def get_class(id): #TODO: Request databáze
+        url = "http://localhost:3002/api/users"
+        response = requests.get(url)
+
+        users = {}
+        data = json.loads(response)
+        for user in data: users[user["name"]] = user["id"]
+
+        return users
 
 class Image():
     """
@@ -77,8 +86,7 @@ class Image():
 
         x, y, w, h = best_rect
 
-        if debug_mode: 
-            cv2.imshow("Table img", Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
+        #if debug_mode: cv2.imshow("Table img", Image.resize(binary[y:y+h, x:x+w], DEBUG_IMG_SCALE)) #image_scale
 
         if debug_mode: print(f"Crop image to {[y-25, y+h+250, x-25, x+w+25]}")
 
@@ -131,7 +139,7 @@ class Image():
         """
         Slice image and process data
         """
-        students = eval(CLASS) ###############
+        students = db.get_class(qr_data["class_id"])
 
         height = img.shape[0]
         width = img.shape[1]   
@@ -201,7 +209,7 @@ class Image():
 
                         for absence in data[1]:
                             if absence:
-                                record = {"id": data[0], "absence": absence}
+                                record = {"id": students[data[0]], "absence": absence}
                                 if not record in records: 
                                     records.append(record)
                         if not last_valid_name == data[0]:
@@ -211,8 +219,8 @@ class Image():
 
         if debug_mode: print(f"Recognized {len(names)} names:", names)
 
-        if len(names) < (len(students)/100)*90: 
-            raise NamesDetectionError("OCR detection error")
+        #if len(names) < (len(students)/100)*90: 
+        #    raise NamesDetectionError("OCR detection error")
 
         return records
 
@@ -256,7 +264,7 @@ class Qr():
                 if debug_mode: print("Flip the image")
                 img = cv2.rotate(img, cv2.ROTATE_180)
 
-            return img, qr_data #Convert to dict
+            return img, ast.literal_eval(qr_data) #Convert to dict
         
         if debug_mode: print(f"QR error: {data}, {bbox}")
         raise QRCodeError("QRCode is not readable") #No readable qrcode on img
@@ -295,12 +303,11 @@ class Engine():
     """
     Primary functions
     """
-    def process(file):
+    def process(input_img):
         """
         Image processing for the required data
         """
         start = time.time()
-        input_img = cv2.imread(file)
 
         if debug_mode: print("Load image")
 
@@ -320,9 +327,9 @@ class Engine():
 
         if debug_mode: print(f"Done in {int((time.time()-start)*100)/100}")
 
-        if debug_mode:
+        """if debug_mode:
             cv2.waitKey(0) #Q for closing the window
-            cv2.destroyAllWindows()
+            cv2.destroyAllWindows()"""
 
         return data
 
@@ -369,10 +376,12 @@ class Engine():
 
         return None
 
-    def slice_processing(img, last_valid_name:str, students):
+    def slice_processing(img, last_valid_name:str, students_ids):
         """
         Image slice processing
         """
+        students = list(students_ids.keys())
+
         #Limit list to prevent bad name detection
         if last_valid_name == None: last_valid_name = 0
         else: last_valid_name = students.index(last_valid_name)
@@ -460,4 +469,4 @@ if "__main__" == __name__:
     #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    print(Engine.process(f"imgs/img1.jpg"))
+    print(Engine.process(cv2.imread("imgs/img1.jpg")))

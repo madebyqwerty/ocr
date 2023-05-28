@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flasgger import Swagger
-import dotenv
+import numpy as np
+import dotenv, ocr, cv2
 
 config = dotenv.dotenv_values(".env")
 app = Flask(__name__)
@@ -43,15 +44,16 @@ def status():
     """
     return jsonify(status="OK")
 
-@app.route(f"/api/process_img", methods=["POST"])
-def process_img():
+@app.route(f"/api/scan", methods=["POST"])
+def scan():
     """
     POST for image processing
     ---
     parameters:
       - name: img
         in: formData
-        type: img
+        type: string
+        format: binary
         description: Image to process
         required: true
 
@@ -64,16 +66,29 @@ def process_img():
                     type: object
                     properties:
                         id:
-                            type: integer
+                            type: string
                             description: The ID of the student
                         absence:
                             type: integer
                             description: The nuber of hour
         400:
-            description: Bad input image
+            description: Bad or missing image
 
     """
-    return jsonify([{"id": 8347, "absence": 0}, {"id": 8347, "absence": 1}, {"id": 8347, "absence": 3}])
+
+    file = request.files.get("file")
+    filename = file.filename.split(".")
+    allowed_files = ["png", "jpg", "jpeg"]
+
+    if file and filename[1] in allowed_files:
+        image = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+
+        try:
+            data = ocr.Engine.process(image)
+            return jsonify(data), 200
+        except: None
+
+    return jsonify({"error": "Bad or missing image"}), 400
     
 if __name__ == '__main__':
     #app.run("0.0.0.0", 3001, debug=True)
