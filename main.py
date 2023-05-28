@@ -77,16 +77,16 @@ def scan():
     """
 
     file = request.files.get("file")
+    filename = file.filename.split(".")
     allowed_files = ["png", "jpg", "jpeg"]
 
-    for allowed in allowed_files:
-        if file and file.filename.endswith(allowed):
-            image = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+    if file and filename[1] in allowed_files:
+        image = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
 
-            try:
-                data = ocr.Engine.process(image)
-                return jsonify(data), 200
-            except: None
+        try:
+            data = ocr.Engine.process(image)
+            return jsonify(data), 200
+        except: None
 
     return jsonify({"error": "Bad or missing image"}), 400
     
