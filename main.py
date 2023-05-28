@@ -15,8 +15,8 @@ swagger_config = {
         {
             "endpoint": 'apispec_1',
             "route": '/apispec_1.json',
-            "rule_filter": lambda rule: True,  # all in
-            "model_filter": lambda tag: True,  # all in
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
         }
     ],
     "static_url_path": "/flasgger_static",
@@ -76,5 +76,5 @@ def process_img():
     return jsonify([{"id": 8347, "absence": 0}, {"id": 8347, "absence": 1}, {"id": 8347, "absence": 3}])
     
 if __name__ == '__main__':
-    #app.run("localhost", 5000, debug=True)
-    app.run("localhost", 5000)
+    #app.run("0.0.0.0", 3001, debug=True)
+    app.run("0.0.0.0", 3001)
