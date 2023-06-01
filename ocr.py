@@ -1,5 +1,5 @@
 
-import cv2, qrcode, pytesseract, time, ast, requests, json
+import cv2, qrcode, pytesseract, time, ast, requests, json, datetime
 import numpy as np
 
 debug_mode = False
@@ -13,7 +13,7 @@ class NamesDetectionError(Exception):
 
 class db():
     def get_class(id): #TODO: Request databáze
-        url = "http://localhost:3002/api/users"
+        url = "http://localhost:5000/api/users"
         response = requests.get(url)
 
         users = {}
@@ -135,7 +135,7 @@ class Image():
         if debug_mode: print("Rotation done")
         return fixed_img
     
-    def slice_and_process(img, qr_data):
+    def slice_and_process(img, qr_data, week_number):
         """
         Slice image and process data
         """
@@ -209,7 +209,10 @@ class Image():
 
                         for absence in data[1]:
                             if absence:
-                                record = {"id": students[data[0]], "absence": absence}
+                                year = datetime.datetime.today().strftime("%Y")
+                                day = absence // 10
+                                date = datetime.datetime.strptime(f"{year}-W{week_number}-{1+day}", "%Y-W%W-%w").strftime('%Y-%m-%d')
+                                record = {"id": students[data[0]], "lesson": absence-(day*10), "date": date}
                                 if not record in records: 
                                     records.append(record)
                         if not last_valid_name == data[0]:
@@ -303,7 +306,7 @@ class Engine():
     """
     Primary functions
     """
-    def process(input_img):
+    def process(input_img, week_number):
         """
         Image processing for the required data
         """
@@ -323,7 +326,7 @@ class Engine():
         img, qr_data = Qr.process(filtered_img) #Get qr data, flip if needed
         table_img = Image.crop_table(img)
 
-        data = Image.slice_and_process(table_img, qr_data)
+        data = Image.slice_and_process(table_img, qr_data, week_number)
 
         if debug_mode: print(f"Done in {int((time.time()-start)*100)/100}")
 

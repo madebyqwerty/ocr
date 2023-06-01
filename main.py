@@ -56,6 +56,12 @@ def scan():
         format: binary
         description: Image to process
         required: true
+      - name: week_number
+        in: formData
+        type: string
+        format: date
+        description: Weeknumber
+        required: true
 
     responses:
         200:
@@ -71,11 +77,15 @@ def scan():
                         absence:
                             type: integer
                             description: The nuber of hour
+                        date:
+                            type: date
+                            description: Date od absence
         400:
             description: Bad or missing image
 
     """
-
+    week_number = request.form.get('week_number')
+    
     file = request.files.get("file")
     filename = file.filename.split(".")
     allowed_files = ["png", "jpg", "jpeg"]
@@ -84,10 +94,10 @@ def scan():
         image = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
 
         try:
-            data = ocr.Engine.process(image)
+            data = ocr.Engine.process(image, week_number)
             return jsonify(data), 200
         except: None
-
+    
     return jsonify({"error": "Bad or missing image"}), 400
     
 if __name__ == '__main__':
