@@ -14,13 +14,18 @@ class NamesDetectionError(Exception):
 class db():
     def get_class(id): #TODO: Request databáze
         url = "http://localhost:5000/api/users"
-        response = requests.get(url)
+        response = requests.get(url).json()
 
         users = {}
-        data = json.loads(response)
-        for user in data: users[user["name"]] = user["id"]
+        for user in response: users[user["name"]] = user["id"]
 
         return users
+    
+    def save(records):
+        for record in records:
+            url = f"http://localhost:5000/api/absences/{record['id']}"
+            data = {"lesson": record["lesson"], "date": record["date"]}
+            requests.post(url, json=data)
 
 class Image():
     """
@@ -328,6 +333,10 @@ class Engine():
 
         data = Image.slice_and_process(table_img, qr_data, week_number)
 
+        if debug_mode: print("Save to database")
+
+        db.save(data)
+
         if debug_mode: print(f"Done in {int((time.time()-start)*100)/100}")
 
         """if debug_mode:
@@ -472,4 +481,4 @@ if "__main__" == __name__:
     #img = Qr.create("01557898-f61c-11ed-b67e-0242ac120002")
     #img.save("Qr.jpg")
 
-    print(Engine.process(cv2.imread("imgs/img1.jpg")))
+    print(Engine.process(cv2.imread("ocr-service/imgs/img1.jpg"), 22))
